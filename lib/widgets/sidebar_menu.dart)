@@ -1,0 +1,130 @@
+// lib/widgets/sidebar_menu.dart
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../providers/navigation_provider.dart';
+
+class SidebarMenu extends StatelessWidget {
+  const SidebarMenu({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final navProvider = Provider.of<NavigationProvider>(context);
+    final Color primaryColor = Theme.of(context).colorScheme.primary;
+    final Color hoverColor = primaryColor.withOpacity(0.1);
+    final Color activeColor = primaryColor; // Warna saat aktif
+    final Color inactiveColor = Colors.grey[700]!; // Warna ikon & teks non-aktif
+    final Color activeTextColor = primaryColor; // Teks saat aktif
+    final Color activeIconColor = primaryColor; // Ikon saat aktif
+
+    Widget navItem({
+      required IconData icon,
+      required String title,
+      required AppPage page,
+      bool isSubItem = false,
+    }) {
+      final bool isActive = navProvider.currentPage == page;
+      return Material(
+        color: isActive && !isSubItem ? activeColor.withOpacity(0.15) : Colors.transparent, // Background item utama aktif
+        child: InkWell(
+          onTap: () => navProvider.changePage(page),
+          onHover: (isHovering) {
+            // Anda bisa menambahkan state untuk hover effect yang lebih kompleks jika perlu
+          },
+          hoverColor: hoverColor,
+          splashColor: activeColor.withOpacity(0.2),
+          child: Container(
+            decoration: BoxDecoration(
+              // Efek seperti di gambar: garis tebal di kiri saat aktif (untuk item utama)
+              border: isActive && !isSubItem
+                  ? Border(left: BorderSide(color: activeColor, width: 4))
+                  : null,
+            ),
+            padding: EdgeInsets.only(
+              left: isSubItem ? 40 : 20, // Indentasi untuk sub-item
+              top: 12,
+              bottom: 12,
+              right: 20,
+            ),
+            child: Row(
+              children: [
+                Icon(icon,
+                    color: isActive ? (isSubItem ? activeIconColor : activeIconColor) : inactiveColor,
+                    size: 22),
+                const SizedBox(width: 15),
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+                    color: isActive ? (isSubItem ? activeTextColor : activeTextColor) : inactiveColor,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      width: 250, // Lebar Sidebar
+      color: Colors.white, // Warna background Sidebar
+      child: Column(
+        children: [
+          // Logo
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+            height: 80, // Sesuaikan
+            child: Image.asset('assets/images/logo.png', fit: BoxFit.contain), // Sesuaikan path logo
+          ),
+          const Divider(height: 1, thickness: 1, indent: 16, endIndent: 16),
+          const SizedBox(height: 10),
+
+          // Navigasi Items
+          navItem(icon: Icons.dashboard_outlined, title: 'Dashboard', page: AppPage.dashboard),
+
+          // Monitoring Dropdown
+          Theme( // Untuk menghilangkan border default ExpansionTile
+            data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+            child: ExpansionTile(
+              key: PageStorageKey<String>('monitoring_tile'), // Untuk menjaga state expanded
+              onExpansionChanged: (isExpanded) {
+                if(isExpanded != navProvider.isMonitoringExpanded) { // Hindari loop rebuild
+                    navProvider.toggleMonitoringExpanded();
+                }
+              },
+              initiallyExpanded: navProvider.isMonitoringExpanded,
+              leading: Icon(Icons.monitor_heart_outlined, color: inactiveColor, size: 22),
+              title: Text('Monitoring', style: TextStyle(color: inactiveColor, fontSize: 15)),
+              trailing: Icon(
+                navProvider.isMonitoringExpanded ? Icons.expand_less : Icons.expand_more,
+                color: inactiveColor,
+              ),
+              childrenPadding: EdgeInsets.zero, // Hapus padding default children
+              tilePadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 0), // Padding untuk tile utama
+              children: <Widget>[
+                navItem(
+                  icon: Icons.flash_on_outlined, // Ganti ikon jika perlu
+                  title: 'Konsumsi Daya',
+                  page: AppPage.konsumsiDaya,
+                  isSubItem: true,
+                ),
+                navItem(
+                  icon: Icons.thermostat_outlined, // Ganti ikon jika perlu
+                  title: 'Suhu',
+                  page: AppPage.suhu,
+                  isSubItem: true,
+                ),
+              ],
+            ),
+          ),
+          navItem(icon: Icons.devices_other_outlined, title: 'Perangkat', page: AppPage.perangkat),
+
+          // Spacer untuk mendorong item ke bawah jika ada (misal: settings, logout di sidebar)
+          // const Spacer(),
+          // navItem(icon: Icons.settings_outlined, title: 'Settings', page: AppPage.settings),
+        ],
+      ),
+    );
+  }
+}
