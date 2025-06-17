@@ -5,7 +5,7 @@ class DeviceData {
   final double temperature;
   final double voltage;
   final double current;
-  final DateTime createdAt;
+  final DateTime timestamp;
 
   DeviceData({
     required this.id,
@@ -13,17 +13,31 @@ class DeviceData {
     required this.temperature,
     required this.voltage,
     required this.current,
-    required this.createdAt,
+    required this.timestamp,
   });
 
   factory DeviceData.fromJson(Map<String, dynamic> json) {
+    // Ambil string waktu dari JSON
+    // Seharusnya sekarang kuncinya adalah 'timestamp'
+    String timestampString = json['timestamp'] ?? json['created_at'] ?? '';
+    // Jika masih ada data lama dengan 'created_at', kode di atas akan menanganinya.
+
+    // Jika string diakhiri dengan 'Z', hapus agar di-parse sebagai waktu lokal
+    if (timestampString.endsWith('Z')) {
+      timestampString = timestampString.substring(
+        0,
+        timestampString.length - 1,
+      );
+    }
+
     return DeviceData(
       id: json['id'],
       watt: (json['watt'] as num).toDouble(),
       temperature: (json['temperature'] as num).toDouble(),
       voltage: (json['voltage'] as num).toDouble(),
       current: (json['current'] as num).toDouble(),
-      createdAt: DateTime.parse(json['created_at']).toLocal(),
+      // Parse dari string yang sudah diperbaiki
+      timestamp: DateTime.parse(timestampString),
     );
   }
 }
