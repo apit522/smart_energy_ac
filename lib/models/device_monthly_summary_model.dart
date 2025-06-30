@@ -1,4 +1,4 @@
-// Sesuai skema tabel device_monthly_summaries
+//lib\models\device_monthly_summary_model.dart
 class DeviceMonthlySummary {
   final int summaryYear;
   final int summaryMonth;
@@ -15,17 +15,6 @@ class DeviceMonthlySummary {
     required this.peakWatt,
     required this.avgTemperature,
   });
-
-  // factory DeviceMonthlySummary.fromJson(Map<String, dynamic> json) {
-  //   return DeviceMonthlySummary(
-  //     summaryYear: json['summary_year'],
-  //     summaryMonth: json['summary_month'],
-  //     avgWatt: (json['avg_watt'] as num).toDouble(),
-  //     totalKwh: (json['total_kwh'] as num).toDouble(),
-  //     peakWatt: (json['peak_watt'] as num).toDouble(),
-  //     avgTemperature: (json['avg_temperature'] as num).toDouble(),
-  //   );
-  // }
 
   factory DeviceMonthlySummary.fromJson(Map<String, dynamic> json) {
     // Helper kecil untuk parsing yang aman

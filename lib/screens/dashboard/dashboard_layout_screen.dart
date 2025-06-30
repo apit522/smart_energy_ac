@@ -27,8 +27,8 @@ class _DashboardLayoutScreenState extends State<DashboardLayoutScreen> {
   AppPage _selectedPage = AppPage.dashboard;
   String _currentPageTitle = "Dashboard";
   final AuthService _authService = AuthService();
-  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>(); // Kunci untuk Scaffold
-
+  final GlobalKey<ScaffoldState> _scaffoldKey =
+      GlobalKey<ScaffoldState>(); // Kunci untuk Scaffold
 
   String _userName = 'User';
   String? _userEmail;
@@ -42,7 +42,8 @@ class _DashboardLayoutScreenState extends State<DashboardLayoutScreen> {
 
   Future<void> _loadUserData() async {
     final userDetails = await _authService.getUserDetails();
-    if (mounted) { // Selalu cek mounted sebelum setState di async operation
+    if (mounted) {
+      // Selalu cek mounted sebelum setState di async operation
       setState(() {
         _userName = userDetails['name'] ?? 'User';
         _userEmail = userDetails['email'];
@@ -65,8 +66,8 @@ class _DashboardLayoutScreenState extends State<DashboardLayoutScreen> {
         return const SuhuContent();
       case AppPage.perangkat:
         return const DeviceScreen();
-    // case AppPage.editProfile: // Halaman edit profile akan dinavigasi secara terpisah
-    //   return EditProfileScreen(onProfileUpdated: refreshUserData);
+      // case AppPage.editProfile: // Halaman edit profile akan dinavigasi secara terpisah
+      //   return EditProfileScreen(onProfileUpdated: refreshUserData);
       default:
         return const ActualDashboardContent();
     }
@@ -85,18 +86,18 @@ class _DashboardLayoutScreenState extends State<DashboardLayoutScreen> {
   void _onProfileTapped() {
     // Untuk edit profile, kita akan navigasi ke screen baru saja
     // tidak mengganti _selectedPage di sini, kecuali Anda mau EditProfileScreen jadi bagian dari konten utama
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => EditProfileScreen(
-          onProfileUpdated: refreshUserData,
-        ),
-      ),
-    ).then((_) {
-      // Setelah kembali dari EditProfileScreen, refresh data user jika perlu
-      // refreshUserData(); // Anda sudah memanggil ini via callback onProfileUpdated
-    });
+    Navigator.of(context)
+        .push(
+          MaterialPageRoute(
+            builder: (context) =>
+                EditProfileScreen(onProfileUpdated: refreshUserData),
+          ),
+        )
+        .then((_) {
+          // Setelah kembali dari EditProfileScreen, refresh data user jika perlu
+          // refreshUserData(); // Anda sudah memanggil ini via callback onProfileUpdated
+        });
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -107,23 +108,27 @@ class _DashboardLayoutScreenState extends State<DashboardLayoutScreen> {
           // Tampilan Mobile
           return Scaffold(
             key: _scaffoldKey,
-            appBar: TopBarWidget( // Gunakan TopBarWidget sebagai AppBar
+            appBar: TopBarWidget(
+              // Gunakan TopBarWidget sebagai AppBar
               title: _currentPageTitle,
               userName: _userName,
               userEmail: _userEmail,
               profilePhotoUrl: _userPhotoUrl,
               onProfileTap: _onProfileTapped,
-              leading: IconButton( // Tombol menu untuk membuka drawer
+              leading: IconButton(
+                // Tombol menu untuk membuka drawer
                 icon: const Icon(Icons.menu),
                 onPressed: () {
                   _scaffoldKey.currentState?.openDrawer();
                 },
               ),
             ),
-            drawer: Drawer( // Sidebar menjadi Drawer
+            drawer: Drawer(
+              // Sidebar menjadi Drawer
               child: SidebarWidget(
                 selectedPage: _selectedPage,
-                onNavigate: (page, title) => _navigateTo(page, title, isMobile: true),
+                onNavigate: (page, title) =>
+                    _navigateTo(page, title, isMobile: true),
               ),
             ),
             body: SafeArea(
@@ -135,17 +140,20 @@ class _DashboardLayoutScreenState extends State<DashboardLayoutScreen> {
           );
         } else {
           // Tampilan Desktop/Web (Layout Anda yang sudah ada)
-          return Scaffold( // Tetap gunakan Scaffold untuk konsistensi background dan struktur
+          return Scaffold(
+            // Tetap gunakan Scaffold untuk konsistensi background dan struktur
             backgroundColor: Colors.grey[100],
             body: Row(
               children: [
                 SidebarWidget(
                   selectedPage: _selectedPage,
-                  onNavigate: (page, title) => _navigateTo(page, title, isMobile: false),
+                  onNavigate: (page, title) =>
+                      _navigateTo(page, title, isMobile: false),
                 ),
                 Expanded(
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch, // Agar TopBarWidget mengisi lebar
+                    crossAxisAlignment: CrossAxisAlignment
+                        .stretch, // Agar TopBarWidget mengisi lebar
                     children: [
                       TopBarWidget(
                         title: _currentPageTitle,

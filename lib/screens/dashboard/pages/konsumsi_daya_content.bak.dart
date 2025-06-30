@@ -130,8 +130,8 @@ class _KonsumsiDayaContentState extends State<KonsumsiDayaContent> {
     double totalWattSeconds = 0;
     for (int i = 0; i < data.length - 1; i++) {
       double avgPowerInterval = (data[i].watt + data[i + 1].watt) / 2;
-      double durationSeconds = data[i + 1].createdAt
-          .difference(data[i].createdAt)
+      double durationSeconds = data[i + 1].timestamp
+          .difference(data[i].timestamp)
           .inSeconds
           .toDouble();
       totalWattSeconds += avgPowerInterval * durationSeconds;
@@ -204,7 +204,7 @@ class _KonsumsiDayaContentState extends State<KonsumsiDayaContent> {
                         spots: _deviceData
                             .map(
                               (d) => FlSpot(
-                                d.createdAt.millisecondsSinceEpoch.toDouble(),
+                                d.timestamp.millisecondsSinceEpoch.toDouble(),
                                 d.watt,
                               ),
                             )
@@ -218,7 +218,7 @@ class _KonsumsiDayaContentState extends State<KonsumsiDayaContent> {
                         spots: _deviceData
                             .map(
                               (d) => FlSpot(
-                                d.createdAt.millisecondsSinceEpoch.toDouble(),
+                                d.timestamp.millisecondsSinceEpoch.toDouble(),
                                 d.voltage,
                               ),
                             )
@@ -232,7 +232,7 @@ class _KonsumsiDayaContentState extends State<KonsumsiDayaContent> {
                         spots: _deviceData
                             .map(
                               (d) => FlSpot(
-                                d.createdAt.millisecondsSinceEpoch.toDouble(),
+                                d.timestamp.millisecondsSinceEpoch.toDouble(),
                                 d.current,
                               ),
                             )

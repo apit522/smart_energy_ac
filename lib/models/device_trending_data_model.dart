@@ -1,4 +1,4 @@
-// Sesuai skema tabel device_trending_data
+//lib\models\device_trending_data_model.dart
 class DeviceTrendingData {
   final int deviceId;
   final double last24hKwh;
@@ -15,17 +15,6 @@ class DeviceTrendingData {
     this.currentEfficiency,
     required this.lastUpdated,
   });
-
-  // factory DeviceTrendingData.fromJson(Map<String, dynamic> json) {
-  //   return DeviceTrendingData(
-  //     deviceId: json['device_id'],
-  //     last24hKwh: (json['last_24h_kwh'] as num).toDouble(),
-  //     last7dKwh: (json['last_7d_kwh'] as num).toDouble(),
-  //     last30dKwh: (json['last_30d_kwh'] as num).toDouble(),
-  //     currentEfficiency: (json['current_efficiency'] as num?)?.toDouble(),
-  //     lastUpdated: DateTime.parse(json['last_updated']).toLocal(),
-  //   );
-  // }
 
   factory DeviceTrendingData.fromJson(Map<String, dynamic> json) {
     // Helper kecil untuk parsing yang aman

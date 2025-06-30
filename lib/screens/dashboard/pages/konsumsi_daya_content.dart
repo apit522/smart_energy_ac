@@ -1,676 +1,35 @@
-// import 'dart:async';
-// import 'package:flutter/material.dart';
-// import 'package:fl_chart/fl_chart.dart';
-// import 'package:intl/intl.dart';
-// import '../../../models/device_model.dart';
-// import '../../../models/device_data_model.dart';
-// import '../../../services/device_service.dart';
-// import '../../../utils/app_colors.dart';
+// lib/screens/dashboard/pages/konsumsi_daya_content.dart
 
-// class KonsumsiDayaContent extends StatefulWidget {
-//   const KonsumsiDayaContent({super.key});
-
-//   @override
-//   State<KonsumsiDayaContent> createState() => _KonsumsiDayaContentState();
-// }
-
-// class _KonsumsiDayaContentState extends State<KonsumsiDayaContent> {
-//   final DeviceService _deviceService = DeviceService();
-//   List<Device> _devices = [];
-//   Device? _selectedDevice;
-//   List<DeviceData> _deviceData = [];
-//   bool _isLoading = true;
-//   String _selectedPeriod = '24h';
-
-//   double _avgWatt = 0.0;
-//   double _avgVoltage = 0.0;
-//   double _avgCurrent = 0.0;
-//   double _totalKwh = 0.0;
-
-//   Timer? _refreshTimer;
-
-//   @override
-//   void initState() {
-//     super.initState();
-//     _fetchUserDevices();
-//     _startAutoRefresh();
-//   }
-
-//   void _startAutoRefresh() {
-//     _refreshTimer = Timer.periodic(const Duration(seconds: 10), (timer) {
-//       if (_selectedDevice != null) {
-//         _fetchDeviceData();
-//       }
-//     });
-//   }
-
-//   @override
-//   void dispose() {
-//     _refreshTimer?.cancel();
-//     super.dispose();
-//   }
-
-//   Future<void> _fetchUserDevices() async {
-//     setState(() {
-//       _isLoading = true;
-//     });
-//     try {
-//       final devices = await _deviceService.getDevices();
-//       if (mounted) {
-//         setState(() {
-//           _devices = devices;
-//           if (_devices.isNotEmpty) {
-//             _selectedDevice = _devices.first;
-//             _fetchDeviceData();
-//           } else {
-//             _isLoading = false;
-//           }
-//         });
-//       }
-//     } catch (e) {
-//       if (mounted) {
-//         ScaffoldMessenger.of(context).showSnackBar(
-//           SnackBar(
-//             content: Text('Error memuat perangkat: $e'),
-//             behavior: SnackBarBehavior.floating,
-//             shape: RoundedRectangleBorder(
-//               borderRadius: BorderRadius.circular(10),
-//             ),
-//           ),
-//         );
-//         setState(() {
-//           _isLoading = false;
-//         });
-//       }
-//     }
-//   }
-
-//   Future<void> _fetchDeviceData() async {
-//     if (_selectedDevice == null) {
-//       setState(() {
-//         _isLoading = false;
-//       });
-//       return;
-//     }
-//     try {
-//       final data = await _deviceService.getDeviceData(
-//         _selectedDevice!.id,
-//         period: _selectedPeriod,
-//       );
-//       if (mounted) {
-//         setState(() {
-//           _deviceData = data;
-//           _calculateMetrics(data);
-//           _isLoading = false;
-//         });
-//       }
-//     } catch (e) {
-//       if (mounted) {
-//         ScaffoldMessenger.of(context).showSnackBar(
-//           SnackBar(
-//             content: Text('Error memuat data perangkat: $e'),
-//             behavior: SnackBarBehavior.floating,
-//             shape: RoundedRectangleBorder(
-//               borderRadius: BorderRadius.circular(10),
-//             ),
-//           ),
-//         );
-//         setState(() {
-//           _isLoading = false;
-//         });
-//       }
-//     }
-//   }
-
-//   void _calculateMetrics(List<DeviceData> data) {
-//     if (data.isEmpty) {
-//       _avgWatt = 0.0;
-//       _avgVoltage = 0.0;
-//       _avgCurrent = 0.0;
-//       _totalKwh = 0.0;
-//       return;
-//     }
-
-//     _avgWatt = data.map((d) => d.watt).reduce((a, b) => a + b) / data.length;
-//     _avgVoltage =
-//         data.map((d) => d.voltage).reduce((a, b) => a + b) / data.length;
-//     _avgCurrent =
-//         data.map((d) => d.current).reduce((a, b) => a + b) / data.length;
-
-//     double totalWattSeconds = 0;
-//     for (int i = 0; i < data.length - 1; i++) {
-//       double avgPowerInterval = (data[i].watt + data[i + 1].watt) / 2;
-//       double durationSeconds = data[i + 1].timestamp
-//           .difference(data[i].timestamp)
-//           .inSeconds
-//           .toDouble();
-//       totalWattSeconds += avgPowerInterval * durationSeconds;
-//     }
-//     double totalWattHours = totalWattSeconds / 3600;
-//     _totalKwh = totalWattHours / 1000;
-//   }
-
-//   @override
-//   Widget build(BuildContext context) {
-//     return Padding(
-//       padding: const EdgeInsets.symmetric(horizontal: 16.0),
-//       child: Column(
-//         crossAxisAlignment: CrossAxisAlignment.start,
-//         children: [
-//           // Header with dropdowns
-//           _buildHeaderSection(),
-//           const SizedBox(height: 16),
-
-//           // Content
-//           _isLoading
-//               ? const Expanded(
-//                   child: Center(
-//                     child: CircularProgressIndicator.adaptive(
-//                       strokeWidth: 2,
-//                       valueColor: AlwaysStoppedAnimation<Color>(
-//                         AppColors.primaryColor,
-//                       ),
-//                     ),
-//                   ),
-//                 )
-//               : Expanded(
-//                   child: RefreshIndicator(
-//                     onRefresh: _fetchDeviceData,
-//                     color: AppColors.primaryColor,
-//                     child: SingleChildScrollView(
-//                       physics: const AlwaysScrollableScrollPhysics(),
-//                       child: Column(
-//                         crossAxisAlignment: CrossAxisAlignment.start,
-//                         children: [
-//                           // Summary cards
-//                           _buildSummaryCards(),
-//                           const SizedBox(height: 24),
-
-//                           // Charts
-//                           _buildChartCard(
-//                             title: 'Penggunaan Daya',
-//                             spots: _deviceData
-//                                 .map(
-//                                   (d) => FlSpot(
-//                                     d.timestamp.millisecondsSinceEpoch
-//                                         .toDouble(),
-//                                     d.watt,
-//                                   ),
-//                                 )
-//                                 .toList(),
-//                             color: AppColors.primaryColor,
-//                             unit: 'W',
-//                             icon: Icons.power_outlined,
-//                           ),
-//                           const SizedBox(height: 16),
-//                           _buildChartCard(
-//                             title: 'Tegangan',
-//                             spots: _deviceData
-//                                 .map(
-//                                   (d) => FlSpot(
-//                                     d.timestamp.millisecondsSinceEpoch
-//                                         .toDouble(),
-//                                     d.voltage,
-//                                   ),
-//                                 )
-//                                 .toList(),
-//                             color: Colors.redAccent,
-//                             unit: 'V',
-//                             icon: Icons.flash_on_outlined,
-//                           ),
-//                           const SizedBox(height: 16),
-//                           _buildChartCard(
-//                             title: 'Arus',
-//                             spots: _deviceData
-//                                 .map(
-//                                   (d) => FlSpot(
-//                                     d.timestamp.millisecondsSinceEpoch
-//                                         .toDouble(),
-//                                     d.current,
-//                                   ),
-//                                 )
-//                                 .toList(),
-//                             color: Colors.green,
-//                             unit: 'A',
-//                             icon: Icons.electrical_services_outlined,
-//                           ),
-//                           const SizedBox(height: 16),
-//                         ],
-//                       ),
-//                     ),
-//                   ),
-//                 ),
-//         ],
-//       ),
-//     );
-//   }
-
-//   Widget _buildHeaderSection() {
-//     return Card(
-//       elevation: 0,
-//       shape: RoundedRectangleBorder(
-//         borderRadius: BorderRadius.circular(12),
-//         side: BorderSide(color: Colors.grey.shade200, width: 1),
-//       ),
-//       child: Padding(
-//         padding: const EdgeInsets.all(12.0),
-//         child: Row(
-//           mainAxisAlignment: MainAxisAlignment.spaceBetween,
-//           children: [
-//             if (_devices.isNotEmpty)
-//               Expanded(
-//                 child: DropdownButtonHideUnderline(
-//                   child: DropdownButton<Device>(
-//                     value: _selectedDevice,
-//                     isExpanded: true,
-//                     hint: const Text(
-//                       'Pilih Perangkat',
-//                       style: TextStyle(color: Colors.grey),
-//                     ),
-//                     items: _devices
-//                         .map(
-//                           (device) => DropdownMenuItem(
-//                             value: device,
-//                             child: Text(
-//                               device.name,
-//                               overflow: TextOverflow.ellipsis,
-//                               style: const TextStyle(fontSize: 14),
-//                             ),
-//                           ),
-//                         )
-//                         .toList(),
-//                     onChanged: (device) {
-//                       if (device != null) {
-//                         setState(() {
-//                           _selectedDevice = device;
-//                         });
-//                         _fetchDeviceData();
-//                       }
-//                     },
-//                     borderRadius: BorderRadius.circular(12),
-//                     icon: const Icon(Icons.arrow_drop_down, size: 24),
-//                     style: TextStyle(color: Colors.grey.shade800),
-//                   ),
-//                 ),
-//               )
-//             else if (!_isLoading)
-//               const Text(
-//                 'Tidak ada perangkat terdaftar.',
-//                 style: TextStyle(color: Colors.grey),
-//               ),
-//             const SizedBox(width: 12),
-//             Container(
-//               decoration: BoxDecoration(
-//                 borderRadius: BorderRadius.circular(8),
-//                 border: Border.all(color: Colors.grey.shade300),
-//               ),
-//               child: DropdownButtonHideUnderline(
-//                 child: DropdownButton<String>(
-//                   value: _selectedPeriod,
-//                   items: const [
-//                     DropdownMenuItem(value: '24h', child: Text('24 Jam')),
-//                     DropdownMenuItem(value: '7d', child: Text('7 Hari')),
-//                     DropdownMenuItem(value: '30d', child: Text('30 Hari')),
-//                   ],
-//                   onChanged: (value) {
-//                     if (value != null) {
-//                       setState(() {
-//                         _selectedPeriod = value;
-//                       });
-//                       _fetchDeviceData();
-//                     }
-//                   },
-//                   padding: const EdgeInsets.symmetric(horizontal: 12),
-//                   borderRadius: BorderRadius.circular(12),
-//                   style: TextStyle(color: Colors.grey.shade800, fontSize: 14),
-//                 ),
-//               ),
-//             ),
-//           ],
-//         ),
-//       ),
-//     );
-//   }
-
-//   Widget _buildSummaryCards() {
-//     return GridView.count(
-//       crossAxisCount: 2,
-//       shrinkWrap: true,
-//       physics: const NeverScrollableScrollPhysics(),
-//       mainAxisSpacing: 12,
-//       crossAxisSpacing: 12,
-//       childAspectRatio: 1.6,
-//       children: [
-//         _buildSummaryCard(
-//           'Rata-rata Watt',
-//           _avgWatt.toStringAsFixed(2),
-//           'W',
-//           Icons.power_outlined,
-//           gradient: LinearGradient(
-//             colors: [
-//               AppColors.primaryColor.withOpacity(0.8),
-//               AppColors.primaryColor,
-//             ],
-//           ),
-//         ),
-//         _buildSummaryCard(
-//           'Rata-rata Voltage',
-//           _avgVoltage.toStringAsFixed(2),
-//           'V',
-//           Icons.flash_on_outlined,
-//           gradient: LinearGradient(
-//             colors: [Colors.redAccent.withOpacity(0.8), Colors.redAccent],
-//           ),
-//         ),
-//         _buildSummaryCard(
-//           'Rata-rata Current',
-//           _avgCurrent.toStringAsFixed(2),
-//           'A',
-//           Icons.electrical_services_outlined,
-//           gradient: LinearGradient(
-//             colors: [Colors.green.withOpacity(0.8), Colors.green],
-//           ),
-//         ),
-//         _buildSummaryCard(
-//           'Total Konsumsi',
-//           _totalKwh.toStringAsFixed(3),
-//           'kWh',
-//           Icons.battery_charging_full_outlined,
-//           gradient: LinearGradient(
-//             colors: [Colors.orange.withOpacity(0.8), Colors.orange],
-//           ),
-//           isKwh: true,
-//         ),
-//       ],
-//     );
-//   }
-
-//   Widget _buildSummaryCard(
-//     String title,
-//     String value,
-//     String unit,
-//     IconData icon, {
-//     Gradient? gradient,
-//     bool isKwh = false,
-//   }) {
-//     return Container(
-//       decoration: BoxDecoration(
-//         borderRadius: BorderRadius.circular(12),
-//         gradient: gradient,
-//         boxShadow: [
-//           BoxShadow(
-//             color: Colors.black.withOpacity(0.1),
-//             blurRadius: 8,
-//             offset: const Offset(0, 4),
-//           ),
-//         ],
-//       ),
-//       child: Padding(
-//         padding: const EdgeInsets.all(16.0),
-//         child: Column(
-//           crossAxisAlignment: CrossAxisAlignment.start,
-//           mainAxisAlignment: MainAxisAlignment.spaceBetween,
-//           children: [
-//             Row(
-//               mainAxisAlignment: MainAxisAlignment.spaceBetween,
-//               children: [
-//                 Text(
-//                   title,
-//                   style: const TextStyle(
-//                     color: Colors.white,
-//                     fontSize: 14,
-//                     fontWeight: FontWeight.w500,
-//                   ),
-//                 ),
-//                 Icon(icon, color: Colors.white.withOpacity(0.8), size: 20),
-//               ],
-//             ),
-//             Column(
-//               crossAxisAlignment: CrossAxisAlignment.start,
-//               children: [
-//                 Text(
-//                   value,
-//                   style: const TextStyle(
-//                     fontSize: 24,
-//                     fontWeight: FontWeight.bold,
-//                     color: Colors.white,
-//                   ),
-//                 ),
-//                 Text(
-//                   unit,
-//                   style: TextStyle(
-//                     color: Colors.white.withOpacity(0.8),
-//                     fontSize: 14,
-//                   ),
-//                 ),
-//               ],
-//             ),
-//           ],
-//         ),
-//       ),
-//     );
-//   }
-
-//   Widget _buildChartCard({
-//     required String title,
-//     required List<FlSpot> spots,
-//     required Color color,
-//     required String unit,
-//     required IconData icon,
-//   }) {
-//     if (spots.length < 2) {
-//       return Card(
-//         elevation: 0,
-//         shape: RoundedRectangleBorder(
-//           borderRadius: BorderRadius.circular(12),
-//           side: BorderSide(color: Colors.grey.shade200, width: 1),
-//         ),
-//         child: Padding(
-//           padding: const EdgeInsets.all(16.0),
-//           child: Column(
-//             crossAxisAlignment: CrossAxisAlignment.start,
-//             children: [
-//               Row(
-//                 children: [
-//                   Icon(icon, color: color, size: 20),
-//                   const SizedBox(width: 8),
-//                   Text(
-//                     title,
-//                     style: TextStyle(
-//                       fontSize: 16,
-//                       fontWeight: FontWeight.w600,
-//                       color: Colors.grey.shade800,
-//                     ),
-//                   ),
-//                 ],
-//               ),
-//               const SizedBox(height: 20),
-//               const AspectRatio(
-//                 aspectRatio: 2.5,
-//                 child: Center(
-//                   child: Text(
-//                     'Data tidak cukup untuk menampilkan grafik.',
-//                     style: TextStyle(color: Colors.grey),
-//                   ),
-//                 ),
-//               ),
-//             ],
-//           ),
-//         ),
-//       );
-//     }
-
-//     final double minX = spots.first.x;
-//     final double maxX = spots.last.x;
-//     final double xRange = maxX - minX;
-//     final double interval = xRange > 0 ? xRange / 4 : 1;
-
-//     final yValues = spots.map((s) => s.y).toList();
-//     final minY = yValues.reduce((a, b) => a < b ? a : b) * 0.98; // 2% padding
-//     final maxY = yValues.reduce((a, b) => a > b ? a : b) * 1.02; // 2% padding
-
-//     return Card(
-//       elevation: 0,
-//       shape: RoundedRectangleBorder(
-//         borderRadius: BorderRadius.circular(12),
-//         side: BorderSide(color: Colors.grey.shade200, width: 1),
-//       ),
-//       child: Padding(
-//         padding: const EdgeInsets.fromLTRB(16, 16, 20, 12),
-//         child: Column(
-//           crossAxisAlignment: CrossAxisAlignment.start,
-//           children: [
-//             Row(
-//               children: [
-//                 Icon(icon, color: color, size: 20),
-//                 const SizedBox(width: 8),
-//                 Text(
-//                   title,
-//                   style: TextStyle(
-//                     fontSize: 16,
-//                     fontWeight: FontWeight.w600,
-//                     color: Colors.grey.shade800,
-//                   ),
-//                 ),
-//               ],
-//             ),
-//             const SizedBox(height: 20),
-//             AspectRatio(
-//               aspectRatio: 2.5,
-//               child: LineChart(
-//                 LineChartData(
-//                   minY: minY,
-//                   maxY: maxY,
-//                   gridData: FlGridData(
-//                     show: true,
-//                     drawVerticalLine: true,
-//                     horizontalInterval: (maxY - minY) / 4,
-//                     getDrawingHorizontalLine: (value) => FlLine(
-//                       color: Colors.grey.shade200,
-//                       strokeWidth: 1,
-//                       dashArray: [4, 4],
-//                     ),
-//                     getDrawingVerticalLine: (value) => FlLine(
-//                       color: Colors.grey.shade200,
-//                       strokeWidth: 1,
-//                       dashArray: [4, 4],
-//                     ),
-//                   ),
-//                   titlesData: FlTitlesData(
-//                     show: true,
-//                     leftTitles: AxisTitles(
-//                       sideTitles: SideTitles(
-//                         showTitles: true,
-//                         reservedSize: 44,
-//                         interval: (maxY - minY) / 4,
-//                         getTitlesWidget: (value, meta) {
-//                           return Padding(
-//                             padding: const EdgeInsets.only(right: 8.0),
-//                             child: Text(
-//                               value.toStringAsFixed(1),
-//                               style: TextStyle(
-//                                 fontSize: 10,
-//                                 color: Colors.grey.shade600,
-//                               ),
-//                             ),
-//                           );
-//                         },
-//                       ),
-//                     ),
-//                     topTitles: AxisTitles(
-//                       sideTitles: SideTitles(showTitles: false),
-//                     ),
-//                     rightTitles: AxisTitles(
-//                       sideTitles: SideTitles(showTitles: false),
-//                     ),
-//                     bottomTitles: AxisTitles(
-//                       sideTitles: SideTitles(
-//                         showTitles: true,
-//                         reservedSize: 30,
-//                         interval: interval,
-//                         getTitlesWidget: (value, meta) {
-//                           final dateTime = DateTime.fromMillisecondsSinceEpoch(
-//                             value.toInt(),
-//                           );
-//                           return SideTitleWidget(
-//                             axisSide: meta.axisSide,
-//                             space: 8.0,
-//                             child: Text(
-//                               DateFormat('HH:mm').format(dateTime),
-//                               style: TextStyle(
-//                                 color: Colors.grey.shade600,
-//                                 fontWeight: FontWeight.w500,
-//                                 fontSize: 10,
-//                               ),
-//                             ),
-//                           );
-//                         },
-//                       ),
-//                     ),
-//                   ),
-//                   borderData: FlBorderData(show: false),
-//                   lineBarsData: [
-//                     LineChartBarData(
-//                       spots: spots,
-//                       isCurved: true,
-//                       color: color,
-//                       barWidth: 3,
-//                       isStrokeCapRound: true,
-//                       dotData: FlDotData(show: false),
-//                       belowBarData: BarAreaData(
-//                         show: true,
-//                         gradient: LinearGradient(
-//                           colors: [
-//                             color.withOpacity(0.2),
-//                             color.withOpacity(0.05),
-//                           ],
-//                           begin: Alignment.topCenter,
-//                           end: Alignment.bottomCenter,
-//                         ),
-//                       ),
-//                     ),
-//                   ],
-//                   lineTouchData: LineTouchData(
-//                     touchTooltipData: LineTouchTooltipData(
-//                       getTooltipColor: (touchedSpot) => Colors.white,
-//                       tooltipRoundedRadius: 8,
-//                       getTooltipItems: (touchedSpots) {
-//                         return touchedSpots.map((spot) {
-//                           final yValue = spot.y.toStringAsFixed(2);
-//                           final dateTime = DateTime.fromMillisecondsSinceEpoch(
-//                             spot.x.toInt(),
-//                           );
-//                           return LineTooltipItem(
-//                             '${DateFormat('HH:mm').format(dateTime)}\n$yValue $unit',
-//                             TextStyle(
-//                               color: Colors.grey.shade800,
-//                               fontWeight: FontWeight.w600,
-//                             ),
-//                           );
-//                         }).toList();
-//                       },
-//                     ),
-//                   ),
-//                 ),
-//               ),
-//             ),
-//           ],
-//         ),
-//       ),
-//     );
-//   }
-// }
-
+import 'dart:async';
+import 'dart:convert';
+import 'dart:math'; // Diperlukan untuk kalkulasi min/max
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
-
-// Pastikan semua path import ini sudah benar
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../../models/device_model.dart';
 import '../../../models/device_daily_summary_model.dart';
-import '../../../services/auth_service.dart';
 import '../../../services/device_service.dart';
 import '../../../utils/app_colors.dart';
+
+// Kelas data untuk grafik real-time, menyimpan timestamp
+class _RealtimeDataPoint {
+  final DateTime timestamp;
+  final double watt;
+
+  _RealtimeDataPoint({required this.timestamp, required this.watt});
+
+  Map<String, dynamic> toJson() => {
+    'timestamp': timestamp.toIso8601String(),
+    'watt': watt,
+  };
+
+  factory _RealtimeDataPoint.fromJson(Map<String, dynamic> json) =>
+      _RealtimeDataPoint(
+        timestamp: DateTime.parse(json['timestamp']),
+        watt: json['watt'].toDouble(),
+      );
+}
 
 class KonsumsiDayaContent extends StatefulWidget {
   const KonsumsiDayaContent({super.key});
@@ -682,7 +41,7 @@ class KonsumsiDayaContent extends StatefulWidget {
 class _KonsumsiDayaContentState extends State<KonsumsiDayaContent> {
   final DeviceService _deviceService = DeviceService();
 
-  // State untuk UI
+  // State UI
   bool _isLoading = true;
   List<Device> _devices = [];
   Device? _selectedDevice;
@@ -691,11 +50,17 @@ class _KonsumsiDayaContentState extends State<KonsumsiDayaContent> {
     end: DateTime.now(),
   );
 
-  // State untuk data
+  // State Data
   List<DeviceDailySummary> _dailySummaries = [];
-  double _totalKwh = 0.0;
-  double _avgWatt = 0.0;
-  double _estimatedCost = 0.0;
+  double _totalKwh = 0.0,
+      _avgWatt = 0.0,
+      _avgVoltage = 0.0,
+      _avgCurrent = 0.0,
+      _estimatedCost = 0.0;
+
+  // State Grafik Real-time
+  Timer? _realtimeTimer;
+  List<_RealtimeDataPoint> _realtimeDataPoints = [];
 
   @override
   void initState() {
@@ -703,30 +68,30 @@ class _KonsumsiDayaContentState extends State<KonsumsiDayaContent> {
     _initialize();
   }
 
+  @override
+  void dispose() {
+    _realtimeTimer?.cancel();
+    super.dispose();
+  }
+
   Future<void> _initialize() async {
     await _fetchUserDevices();
     if (_selectedDevice != null) {
       await _fetchSummaryData();
+    } else {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
   Future<void> _fetchUserDevices() async {
-    setState(() {
-      _isLoading = true;
-    });
+    setState(() => _isLoading = true);
     try {
       _devices = await _deviceService.getDevices();
       if (mounted && _devices.isNotEmpty) {
         _selectedDevice = _devices.first;
       }
     } catch (e) {
-      if (mounted)
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error memuat perangkat: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
+      _showError('Gagal memuat perangkat: $e');
     }
   }
 
@@ -735,29 +100,19 @@ class _KonsumsiDayaContentState extends State<KonsumsiDayaContent> {
       setState(() => _isLoading = false);
       return;
     }
-    setState(() {
-      _isLoading = true;
-    });
+    setState(() => _isLoading = true);
     try {
       _dailySummaries = await _deviceService.getDailySummary(
         _selectedDevice!.id,
         startDate: _selectedDateRange.start,
         endDate: _selectedDateRange.end,
       );
-      _calculateStats(); // Hitung statistik setelah data didapat
+      _calculateStats();
+      await _startRealtimeUpdates();
     } catch (e) {
-      if (mounted)
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error memuat ringkasan data: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
+      _showError('Gagal memuat ringkasan data: $e');
     } finally {
-      if (mounted)
-        setState(() {
-          _isLoading = false;
-        });
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -765,14 +120,21 @@ class _KonsumsiDayaContentState extends State<KonsumsiDayaContent> {
     if (_dailySummaries.isEmpty) {
       _totalKwh = 0;
       _avgWatt = 0;
+      _avgVoltage = 0;
+      _avgCurrent = 0;
       _estimatedCost = 0;
       return;
     }
     _totalKwh = _dailySummaries.map((s) => s.totalKwh).reduce((a, b) => a + b);
+    final count = _dailySummaries.length;
     _avgWatt =
-        _dailySummaries.map((s) => s.avgWatt).reduce((a, b) => a + b) /
-        _dailySummaries.length;
-
+        _dailySummaries.map((s) => s.avgWatt).reduce((a, b) => a + b) / count;
+    _avgVoltage =
+        _dailySummaries.map((s) => s.avgVoltage).reduce((a, b) => a + b) /
+        count;
+    _avgCurrent =
+        _dailySummaries.map((s) => s.avgCurrent).reduce((a, b) => a + b) /
+        count;
     final tarif = _selectedDevice?.tarifPerKwh ?? 0;
     _estimatedCost = _totalKwh * tarif;
   }
@@ -785,115 +147,225 @@ class _KonsumsiDayaContentState extends State<KonsumsiDayaContent> {
       lastDate: DateTime.now(),
     );
     if (picked != null && picked != _selectedDateRange) {
-      setState(() {
-        _selectedDateRange = picked;
-      });
-      _fetchSummaryData();
+      setState(() => _selectedDateRange = picked);
+      await _fetchSummaryData();
     }
   }
 
+  void _showError(String message) {
+    if (mounted)
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message), backgroundColor: Colors.red),
+      );
+  }
+
+  // --- LOGIKA PERSISTENSI REAL-TIME ---
+
+  String _getRealtimeDataKey() =>
+      'realtime_watt_data_${_selectedDevice?.id ?? 'null'}';
+
+  Future<void> _loadRealtimeDataFromPrefs() async {
+    final prefs = await SharedPreferences.getInstance();
+    final savedDataJson = prefs.getString(_getRealtimeDataKey());
+    if (savedDataJson != null) {
+      final List<dynamic> decodedList = json.decode(savedDataJson);
+      final loadedPoints = decodedList
+          .map((item) => _RealtimeDataPoint.fromJson(item))
+          .toList();
+      if (mounted) setState(() => _realtimeDataPoints = loadedPoints);
+    }
+  }
+
+  Future<void> _saveRealtimeDataToPrefs() async {
+    final prefs = await SharedPreferences.getInstance();
+    final dataToSave = json.encode(
+      _realtimeDataPoints.map((p) => p.toJson()).toList(),
+    );
+    await prefs.setString(_getRealtimeDataKey(), dataToSave);
+  }
+
+  Future<void> _startRealtimeUpdates() async {
+    _realtimeTimer?.cancel();
+    _clearRealtimeData();
+    if (_selectedDevice == null) return;
+
+    await _loadRealtimeDataFromPrefs();
+
+    if (_realtimeDataPoints.isEmpty) {
+      await _fetchLatestWattData(saveData: false);
+    }
+
+    _realtimeTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
+      _fetchLatestWattData();
+    });
+  }
+
+  Future<void> _fetchLatestWattData({bool saveData = true}) async {
+    if (_selectedDevice == null || !mounted) return;
+    try {
+      final latestData = await _deviceService.getLatestData(
+        _selectedDevice!.id,
+      );
+      if (latestData != null) {
+        setState(() {
+          final newPoint = _RealtimeDataPoint(
+            timestamp: DateTime.now(),
+            watt: latestData.watt,
+          );
+          _realtimeDataPoints.add(newPoint);
+          if (_realtimeDataPoints.length > 30) {
+            _realtimeDataPoints.removeAt(0);
+          }
+        });
+        if (saveData) await _saveRealtimeDataToPrefs();
+      }
+    } catch (e) {
+      print("Gagal mengambil data real-time: $e");
+    }
+  }
+
+  void _clearRealtimeData() => setState(() => _realtimeDataPoints = []);
+
+  // --- UI UTAMA & WIDGET BUILDERS ---
+
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        _buildFilterBar(),
-        const SizedBox(height: 24),
-        _isLoading
-            ? const Expanded(child: Center(child: CircularProgressIndicator()))
-            : Expanded(
-                child: SingleChildScrollView(
-                  child: Column(
-                    children: [
-                      _buildSummaryCards(),
-                      const SizedBox(height: 24),
-                      _buildChartCard(),
-                    ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        bool isMobile = constraints.maxWidth < 850;
+        return Column(
+          children: [
+            _buildFilterBar(isMobile: isMobile),
+            const SizedBox(height: 24),
+            _isLoading
+                ? const Expanded(
+                    child: Center(child: CircularProgressIndicator()),
+                  )
+                : Expanded(
+                    child: _selectedDevice == null
+                        ? const Center(
+                            child: Text(
+                              'Tidak ada perangkat terpilih.',
+                              textAlign: TextAlign.center,
+                            ),
+                          )
+                        : SingleChildScrollView(
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16.0,
+                              ),
+                              child: Column(
+                                children: [
+                                  _buildSummaryCards(isMobile: isMobile),
+                                  const SizedBox(height: 24),
+                                  _buildChartsSection(isMobile: isMobile),
+                                  const SizedBox(height: 24),
+                                ],
+                              ),
+                            ),
+                          ),
                   ),
-                ),
-              ),
-      ],
+          ],
+        );
+      },
     );
   }
 
-  // --- WIDGET BUILDERS ---
-
-  Widget _buildFilterBar() {
+  Widget _buildFilterBar({required bool isMobile}) {
     final dateFormat = DateFormat('d MMM y');
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      color: Colors.white,
+      margin: const EdgeInsets.symmetric(horizontal: 16.0),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-        child: Row(
-          children: [
-            Expanded(
-              child: DropdownButtonHideUnderline(
-                child: DropdownButton<Device>(
-                  value: _selectedDevice,
-                  isExpanded: true,
-                  hint: const Text('Pilih Perangkat'),
-                  items: _devices
-                      .map(
-                        (d) => DropdownMenuItem(
-                          value: d,
-                          child: Text(d.name, overflow: TextOverflow.ellipsis),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: (device) {
-                    if (device != null) {
-                      setState(() {
-                        _selectedDevice = device;
-                      });
-                      _fetchSummaryData();
-                    }
-                  },
-                ),
+        child: isMobile
+            ? Column(
+                children: [_deviceDropdown(), _datePickerButton(dateFormat)],
+              )
+            : Row(
+                children: [
+                  Expanded(child: _deviceDropdown()),
+                  const SizedBox(width: 16),
+                  _datePickerButton(dateFormat),
+                ],
               ),
-            ),
-            const SizedBox(width: 16),
-            TextButton.icon(
-              onPressed: _selectDateRange,
-              icon: const Icon(Icons.calendar_today_outlined, size: 18),
-              label: Text(
-                '${dateFormat.format(_selectedDateRange.start)} - ${dateFormat.format(_selectedDateRange.end)}',
-              ),
-              style: TextButton.styleFrom(
-                foregroundColor: AppColors.primaryColor,
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }
 
-  Widget _buildSummaryCards() {
+  Widget _deviceDropdown() => DropdownButtonHideUnderline(
+    child: DropdownButton<Device>(
+      value: _selectedDevice,
+      isExpanded: true,
+      hint: const Text('Pilih Perangkat'),
+      items: _devices
+          .map(
+            (d) => DropdownMenuItem(
+              value: d,
+              child: Text(d.name, overflow: TextOverflow.ellipsis),
+            ),
+          )
+          .toList(),
+      onChanged: (device) {
+        if (device != null && device.id != _selectedDevice?.id) {
+          setState(() => _selectedDevice = device);
+          _fetchSummaryData();
+        }
+      },
+    ),
+  );
+
+  Widget _datePickerButton(DateFormat format) => TextButton.icon(
+    onPressed: _selectDateRange,
+    icon: const Icon(Icons.calendar_today_outlined, size: 18),
+    label: Text(
+      '${format.format(_selectedDateRange.start)} - ${format.format(_selectedDateRange.end)}',
+    ),
+    style: TextButton.styleFrom(foregroundColor: AppColors.primaryColor),
+  );
+
+  Widget _buildSummaryCards({required bool isMobile}) {
     final currencyFormatter = NumberFormat.currency(
       locale: 'id_ID',
       symbol: 'Rp ',
       decimalDigits: 0,
     );
+    int crossAxisCount = isMobile ? 2 : 5;
+    double childAspectRatio = isMobile ? 1.8 : 2.2;
 
     return GridView.count(
-      crossAxisCount: 3, // Tampilkan 3 kartu ringkasan
+      crossAxisCount: crossAxisCount,
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       mainAxisSpacing: 16,
       crossAxisSpacing: 16,
-      childAspectRatio: 2.5 / 2,
+      childAspectRatio: childAspectRatio,
       children: [
         _buildSummaryCard(
           'Total Konsumsi',
           _totalKwh.toStringAsFixed(2),
           'kWh',
-          Icons.power_outlined,
+          Icons.power,
         ),
         _buildSummaryCard(
           'Rata-rata Daya',
           _avgWatt.toStringAsFixed(1),
           'Watt',
           Icons.speed_outlined,
+        ),
+        _buildSummaryCard(
+          'Rata-rata Tegangan',
+          _avgVoltage.toStringAsFixed(1),
+          'V',
+          Icons.flash_on_outlined,
+        ),
+        _buildSummaryCard(
+          'Rata-rata Arus',
+          _avgCurrent.toStringAsFixed(2),
+          'A',
+          Icons.electrical_services_outlined,
         ),
         _buildSummaryCard(
           'Perkiraan Biaya',
@@ -914,6 +386,7 @@ class _KonsumsiDayaContentState extends State<KonsumsiDayaContent> {
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      color: Colors.white,
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
@@ -926,8 +399,9 @@ class _KonsumsiDayaContentState extends State<KonsumsiDayaContent> {
             ),
             const SizedBox(height: 8),
             Text(
-              '$value $unit',
+              '$value $unit'.trim(),
               style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+              overflow: TextOverflow.ellipsis,
             ),
           ],
         ),
@@ -935,10 +409,32 @@ class _KonsumsiDayaContentState extends State<KonsumsiDayaContent> {
     );
   }
 
-  Widget _buildChartCard() {
+  Widget _buildChartsSection({required bool isMobile}) {
+    if (isMobile) {
+      return Column(
+        children: [
+          _buildDailyChartCard(),
+          const SizedBox(height: 24),
+          _buildRealtimeChartCard(),
+        ],
+      );
+    } else {
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(child: _buildDailyChartCard()),
+          const SizedBox(width: 24),
+          Expanded(child: _buildRealtimeChartCard()),
+        ],
+      );
+    }
+  }
+
+  Widget _buildDailyChartCard() {
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      color: Colors.white,
       child: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -950,24 +446,92 @@ class _KonsumsiDayaContentState extends State<KonsumsiDayaContent> {
             ),
             const SizedBox(height: 24),
             AspectRatio(
-              aspectRatio: 2,
+              aspectRatio: 1.7,
               child: _dailySummaries.length < 2
                   ? const Center(
                       child: Text('Data tidak cukup untuk menampilkan grafik.'),
                     )
                   : BarChart(
                       BarChartData(
-                        alignment: BarChartAlignment.spaceBetween,
+                        barTouchData: BarTouchData(
+                          touchTooltipData: BarTouchTooltipData(
+                            getTooltipColor: (touchedSpot) => Colors.black87,
+                            getTooltipItem: (group, groupIndex, rod, rodIndex) {
+                              final summary = _dailySummaries[groupIndex];
+                              return BarTooltipItem(
+                                '${DateFormat('d MMM').format(summary.summaryDate)}\n',
+                                const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                                children: <TextSpan>[
+                                  TextSpan(
+                                    text: '${rod.toY.toStringAsFixed(2)} kWh',
+                                    style: const TextStyle(
+                                      color: Colors.yellow,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              );
+                            },
+                          ),
+                        ),
+                        titlesData: FlTitlesData(
+                          topTitles: const AxisTitles(
+                            sideTitles: SideTitles(showTitles: false),
+                          ),
+                          rightTitles: const AxisTitles(
+                            sideTitles: SideTitles(showTitles: false),
+                          ),
+                          leftTitles: AxisTitles(
+                            sideTitles: SideTitles(
+                              showTitles: true,
+                              reservedSize: 40,
+                              getTitlesWidget: (value, meta) => Text(
+                                meta.formattedValue,
+                                style: const TextStyle(fontSize: 10),
+                              ),
+                            ),
+                          ),
+                          bottomTitles: AxisTitles(
+                            sideTitles: SideTitles(
+                              showTitles: true,
+                              reservedSize: 30,
+                              getTitlesWidget: (value, meta) {
+                                String title = '';
+                                final matchingSummary = _dailySummaries
+                                    .firstWhere(
+                                      (s) => s.summaryDate.day == value.toInt(),
+                                      orElse: () => _dailySummaries.first,
+                                    );
+                                title = DateFormat(
+                                  'd/M',
+                                ).format(matchingSummary.summaryDate);
+                                int skip = _dailySummaries.length ~/ 7 + 1;
+                                if (value.toInt() % skip != 0 &&
+                                    _dailySummaries.length > 10) {
+                                  return Container();
+                                }
+                                return SideTitleWidget(
+                                  axisSide: meta.axisSide,
+                                  space: 4,
+                                  child: Text(
+                                    title,
+                                    style: const TextStyle(fontSize: 10),
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                        ),
                         barGroups: _dailySummaries.asMap().entries.map((entry) {
                           final summary = entry.value;
                           return BarChartGroupData(
-                            x: summary
-                                .summaryDate
-                                .day, // Gunakan hari sebagai sumbu X
+                            x: summary.summaryDate.day,
                             barRods: [
                               BarChartRodData(
-                                toY: summary
-                                    .totalKwh, // Tinggi bar adalah total kWh
+                                toY: summary.totalKwh,
                                 color: AppColors.primaryColor,
                                 width: 12,
                                 borderRadius: const BorderRadius.all(
@@ -977,29 +541,144 @@ class _KonsumsiDayaContentState extends State<KonsumsiDayaContent> {
                             ],
                           );
                         }).toList(),
+                      ),
+                    ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRealtimeChartCard() {
+    final spots = _realtimeDataPoints.map((point) {
+      return FlSpot(
+        point.timestamp.millisecondsSinceEpoch.toDouble(),
+        point.watt,
+      );
+    }).toList();
+
+    double minY = 0, maxY = 100; // Default
+    if (_realtimeDataPoints.isNotEmpty) {
+      final wattValues = _realtimeDataPoints.map((p) => p.watt);
+      minY = wattValues.reduce(min);
+      maxY = wattValues.reduce(max);
+      if (minY == maxY) {
+        minY = max(0, minY - 50);
+        maxY += 50;
+      }
+      final padding = (maxY - minY) * 0.2;
+      minY = max(0, minY - padding);
+      maxY += padding;
+    }
+
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      color: Colors.white,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Grafik Daya Real-time (Watt)',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 24),
+            AspectRatio(
+              aspectRatio: 1.7,
+              child: _realtimeDataPoints.isEmpty
+                  ? const Center(child: Text('Menunggu data real-time...'))
+                  : LineChart(
+                      LineChartData(
+                        clipData: const FlClipData.all(),
+                        minY: minY,
+                        maxY: maxY,
+                        lineTouchData: LineTouchData(
+                          handleBuiltInTouches: true,
+                          touchTooltipData: LineTouchTooltipData(
+                            getTooltipColor: (touchedSpot) => Colors.black87,
+                            getTooltipItems: (touchedSpots) {
+                              return touchedSpots.map((spot) {
+                                final dataPoint = _realtimeDataPoints
+                                    .firstWhere(
+                                      (p) =>
+                                          p.timestamp.millisecondsSinceEpoch
+                                              .toDouble() ==
+                                          spot.x,
+                                      orElse: () => _realtimeDataPoints.first,
+                                    );
+                                return LineTooltipItem(
+                                  '${DateFormat('HH:mm:ss').format(dataPoint.timestamp)}\n',
+                                  const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                  children: [
+                                    TextSpan(
+                                      text:
+                                          '${dataPoint.watt.toStringAsFixed(1)} Watt',
+                                      style: const TextStyle(
+                                        color: Colors.yellow,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ],
+                                );
+                              }).toList();
+                            },
+                          ),
+                        ),
+                        gridData: FlGridData(
+                          show: true,
+                          drawVerticalLine: true,
+                          getDrawingHorizontalLine: (v) => FlLine(
+                            color: Colors.grey.shade300,
+                            strokeWidth: 0.5,
+                          ),
+                          getDrawingVerticalLine: (v) => FlLine(
+                            color: Colors.grey.shade300,
+                            strokeWidth: 0.5,
+                          ),
+                        ),
                         titlesData: FlTitlesData(
-                          topTitles: AxisTitles(
-                            sideTitles: SideTitles(showTitles: false),
-                          ),
-                          rightTitles: AxisTitles(
-                            sideTitles: SideTitles(showTitles: false),
-                          ),
                           leftTitles: AxisTitles(
                             sideTitles: SideTitles(
                               showTitles: true,
                               reservedSize: 40,
+                              getTitlesWidget: (v, m) => Text(
+                                m.formattedValue,
+                                style: const TextStyle(fontSize: 10),
+                              ),
                             ),
+                          ),
+                          topTitles: const AxisTitles(
+                            sideTitles: SideTitles(showTitles: false),
+                          ),
+                          rightTitles: const AxisTitles(
+                            sideTitles: SideTitles(showTitles: false),
                           ),
                           bottomTitles: AxisTitles(
                             sideTitles: SideTitles(
                               showTitles: true,
-                              reservedSize: 30,
+                              reservedSize: 22,
+                              // PERBAIKAN: Memastikan interval tidak nol
+                              interval: spots.length > 1
+                                  ? (spots.last.x - spots.first.x) / 4
+                                  : 1000,
                               getTitlesWidget: (value, meta) {
-                                // Tampilkan tanggal untuk setiap bar
+                                if (meta.max == value || meta.min == value)
+                                  return Container();
                                 return SideTitleWidget(
                                   axisSide: meta.axisSide,
+                                  space: 8,
                                   child: Text(
-                                    value.toInt().toString(),
+                                    DateFormat('HH:mm').format(
+                                      DateTime.fromMillisecondsSinceEpoch(
+                                        value.toInt(),
+                                      ),
+                                    ),
                                     style: const TextStyle(fontSize: 10),
                                   ),
                                 );
@@ -1007,6 +686,23 @@ class _KonsumsiDayaContentState extends State<KonsumsiDayaContent> {
                             ),
                           ),
                         ),
+                        borderData: FlBorderData(
+                          show: true,
+                          border: Border.all(color: Colors.grey.shade300),
+                        ),
+                        lineBarsData: [
+                          LineChartBarData(
+                            spots: spots,
+                            isCurved: true,
+                            color: AppColors.accentColor,
+                            barWidth: 3,
+                            dotData: const FlDotData(show: false),
+                            belowBarData: BarAreaData(
+                              show: true,
+                              color: AppColors.accentColor.withOpacity(0.3),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
             ),

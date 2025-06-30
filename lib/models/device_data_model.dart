@@ -17,8 +17,6 @@ class DeviceData {
   });
 
   factory DeviceData.fromJson(Map<String, dynamic> json) {
-    // Ambil string waktu dari JSON
-    // Seharusnya sekarang kuncinya adalah 'timestamp'
     // String timestampString = json['timestamp'] ?? json['created_at'] ?? '';
 
     // // Jika string diakhiri dengan 'Z', hapus agar di-parse sebagai waktu lokal

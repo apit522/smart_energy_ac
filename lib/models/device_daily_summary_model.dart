@@ -1,4 +1,4 @@
-// Sesuai skema tabel device_daily_summaries
+//lib\models\device_daily_summary_model.dart
 class DeviceDailySummary {
   final DateTime summaryDate;
   final int samplesCount;
@@ -21,20 +21,6 @@ class DeviceDailySummary {
     required this.avgCurrent,
     required this.totalKwh,
   });
-
-  // factory DeviceDailySummary.fromJson(Map<String, dynamic> json) {
-  //   return DeviceDailySummary(
-  //     summaryDate: DateTime.parse(json['summary_date']),
-  //     samplesCount: json['samples_count'],
-  //     avgWatt: (json['avg_watt'] as num).toDouble(),
-  //     minWatt: (json['min_watt'] as num).toDouble(),
-  //     maxWatt: (json['max_watt'] as num).toDouble(),
-  //     avgTemperature: (json['avg_temperature'] as num).toDouble(),
-  //     avgVoltage: (json['avg_voltage'] as num).toDouble(),
-  //     avgCurrent: (json['avg_current'] as num).toDouble(),
-  //     totalKwh: (json['total_kwh'] as num).toDouble(),
-  //   );
-  // }
 
   factory DeviceDailySummary.fromJson(Map<String, dynamic> json) {
     // Helper kecil untuk parsing yang aman
