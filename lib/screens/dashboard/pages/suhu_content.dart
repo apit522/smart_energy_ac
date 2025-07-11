@@ -1,362 +1,8 @@
-// import 'package:flutter/material.dart';
-// import 'package:fl_chart/fl_chart.dart';
-// import 'package:intl/intl.dart';
-// import '../../../models/device_model.dart';
-// import '../../../models/device_data_model.dart';
-// import '../../../services/device_service.dart';
-// import '../../../utils/app_colors.dart';
-
-// class SuhuContent extends StatefulWidget {
-//   const SuhuContent({super.key});
-
-//   @override
-//   State<SuhuContent> createState() => _SuhuContentState();
-// }
-
-// class _SuhuContentState extends State<SuhuContent> {
-//   final DeviceService _deviceService = DeviceService();
-//   List<Device> _devices = [];
-//   Device? _selectedDevice;
-//   List<DeviceData> _deviceData = [];
-//   bool _isLoading = true;
-
-//   // State untuk filter
-//   String _selectedPeriod = '24h';
-
-//   // State untuk rata-rata suhu
-//   double _avgTemperature = 0.0;
-
-//   @override
-//   void initState() {
-//     super.initState();
-//     _fetchUserDevices();
-//   }
-
-//   Future<void> _fetchUserDevices() async {
-//     setState(() {
-//       _isLoading = true;
-//     });
-//     try {
-//       final devices = await _deviceService.getDevices();
-//       if (mounted) {
-//         setState(() {
-//           _devices = devices;
-//           if (_devices.isNotEmpty) {
-//             _selectedDevice = _devices.first;
-//             _fetchDeviceData();
-//           } else {
-//             _isLoading = false;
-//           }
-//         });
-//       }
-//     } catch (e) {
-//       if (mounted) {
-//         ScaffoldMessenger.of(context).showSnackBar(
-//           SnackBar(
-//             content: Text('Error memuat perangkat: $e'),
-//             backgroundColor: Colors.red,
-//           ),
-//         );
-//         setState(() {
-//           _isLoading = false;
-//         });
-//       }
-//     }
-//   }
-
-//   Future<void> _fetchDeviceData() async {
-//     if (_selectedDevice == null) {
-//       setState(() {
-//         _isLoading = false;
-//       });
-//       return;
-//     }
-//     setState(() {
-//       _isLoading = true;
-//     });
-//     try {
-//       final data = await _deviceService.getDeviceData(
-//         _selectedDevice!.id,
-//         period: _selectedPeriod,
-//       );
-//       if (mounted) {
-//         setState(() {
-//           _deviceData = data;
-//           _calculateAverageTemperature(data);
-//           _isLoading = false;
-//         });
-//       }
-//     } catch (e) {
-//       if (mounted) {
-//         ScaffoldMessenger.of(context).showSnackBar(
-//           SnackBar(
-//             content: Text('Error memuat data suhu: $e'),
-//             backgroundColor: Colors.red,
-//           ),
-//         );
-//         setState(() {
-//           _isLoading = false;
-//         });
-//       }
-//     }
-//   }
-
-//   void _calculateAverageTemperature(List<DeviceData> data) {
-//     if (data.isEmpty) {
-//       setState(() {
-//         _avgTemperature = 0.0;
-//       });
-//       return;
-//     }
-//     final avg =
-//         data.map((d) => d.temperature).reduce((a, b) => a + b) / data.length;
-//     setState(() {
-//       _avgTemperature = avg;
-//     });
-//   }
-
-//   @override
-//   Widget build(BuildContext context) {
-//     return Column(
-//       children: [
-//         _buildFilterBar(),
-//         const SizedBox(height: 24),
-//         _isLoading
-//             ? const Expanded(child: Center(child: CircularProgressIndicator()))
-//             : Expanded(
-//                 child: SingleChildScrollView(
-//                   child: Column(
-//                     children: [
-//                       _buildChartCard(),
-//                       const SizedBox(height: 16),
-//                       _buildAverageTemperatureChip(),
-//                     ],
-//                   ),
-//                 ),
-//               ),
-//       ],
-//     );
-//   }
-
-//   Widget _buildFilterBar() {
-//     return Card(
-//       elevation: 2,
-//       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-//       child: Padding(
-//         padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
-//         child: Row(
-//           children: [
-//             // Dropdown Periode
-//             Expanded(
-//               flex: 1,
-//               child: DropdownButtonHideUnderline(
-//                 child: DropdownButton<String>(
-//                   value: _selectedPeriod,
-//                   items: const [
-//                     DropdownMenuItem(value: '24h', child: Text('Harian')),
-//                     DropdownMenuItem(value: '7d', child: Text('Mingguan')),
-//                     DropdownMenuItem(value: '30d', child: Text('Bulanan')),
-//                   ],
-//                   onChanged: (value) {
-//                     if (value != null) {
-//                       setState(() {
-//                         _selectedPeriod = value;
-//                       });
-//                       _fetchDeviceData();
-//                     }
-//                   },
-//                 ),
-//               ),
-//             ),
-//             const SizedBox(width: 16),
-//             // Dropdown Perangkat
-//             Expanded(
-//               flex: 2,
-//               child: DropdownButtonHideUnderline(
-//                 child: DropdownButton<Device>(
-//                   value: _selectedDevice,
-//                   isExpanded: true,
-//                   hint: const Text('Perangkat'),
-//                   items: _devices
-//                       .map(
-//                         (device) => DropdownMenuItem(
-//                           value: device,
-//                           child: Text(
-//                             device.name,
-//                             overflow: TextOverflow.ellipsis,
-//                           ),
-//                         ),
-//                       )
-//                       .toList(),
-//                   onChanged: (device) {
-//                     if (device != null) {
-//                       setState(() {
-//                         _selectedDevice = device;
-//                       });
-//                       _fetchDeviceData();
-//                     }
-//                   },
-//                 ),
-//               ),
-//             ),
-//           ],
-//         ),
-//       ),
-//     );
-//   }
-
-//   Widget _buildChartCard() {
-//     final List<FlSpot> spots = _deviceData
-//         .map(
-//           (d) => FlSpot(
-//             d.timestamp.millisecondsSinceEpoch.toDouble(),
-//             d.temperature,
-//           ),
-//         )
-//         .toList();
-
-//     return Card(
-//       elevation: 2,
-//       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-//       child: Padding(
-//         padding: const EdgeInsets.fromLTRB(16, 16, 20, 12),
-//         child: Column(
-//           crossAxisAlignment: CrossAxisAlignment.start,
-//           children: [
-//             const Text(
-//               'Grafik Suhu',
-//               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-//             ),
-//             const SizedBox(height: 20),
-//             AspectRatio(
-//               aspectRatio: 2,
-//               child: spots.length < 2
-//                   ? const Center(
-//                       child: Text('Data tidak cukup untuk menampilkan grafik.'),
-//                     )
-//                   : LineChart(
-//                       LineChartData(
-//                         gridData: FlGridData(show: true),
-//                         titlesData: FlTitlesData(
-//                           leftTitles: AxisTitles(
-//                             sideTitles: SideTitles(
-//                               showTitles: true,
-//                               reservedSize: 44,
-//                               getTitlesWidget: (value, meta) => Text(
-//                                 meta.formattedValue,
-//                                 style: const TextStyle(fontSize: 10),
-//                               ),
-//                             ),
-//                           ),
-//                           bottomTitles: _getBottomTitles(spots),
-//                           topTitles: AxisTitles(
-//                             sideTitles: SideTitles(showTitles: false),
-//                           ),
-//                           rightTitles: AxisTitles(
-//                             sideTitles: SideTitles(showTitles: false),
-//                           ),
-//                         ),
-//                         borderData: FlBorderData(
-//                           show: true,
-//                           border: Border.all(color: Colors.grey.shade300),
-//                         ),
-//                         lineBarsData: [
-//                           LineChartBarData(
-//                             spots: spots,
-//                             isCurved: true,
-//                             color: Colors.orange,
-//                             barWidth: 3,
-//                             isStrokeCapRound: true,
-//                             dotData: FlDotData(show: true),
-//                             belowBarData: BarAreaData(
-//                               show: true,
-//                               color: Colors.orange.withOpacity(0.3),
-//                             ),
-//                           ),
-//                         ],
-//                         lineTouchData: LineTouchData(
-//                           touchTooltipData: LineTouchTooltipData(
-//                             getTooltipColor: (touchedSpot) => Colors.black,
-//                             getTooltipItems: (touchedSpots) {
-//                               return touchedSpots.map((spot) {
-//                                 final yValue = spot.y.toStringAsFixed(1);
-//                                 return LineTooltipItem(
-//                                   '$yValue °C',
-//                                   const TextStyle(color: Colors.white),
-//                                 );
-//                               }).toList();
-//                             },
-//                           ),
-//                         ),
-//                       ),
-//                     ),
-//             ),
-//           ],
-//         ),
-//       ),
-//     );
-//   }
-
-//   AxisTitles _getBottomTitles(List<FlSpot> spots) {
-//     if (spots.length < 2) {
-//       return AxisTitles(sideTitles: SideTitles(showTitles: false));
-//     }
-//     final double minX = spots.first.x;
-//     final double maxX = spots.last.x;
-//     final double interval = (maxX - minX) > 0 ? (maxX - minX) / 4 : 1;
-
-//     return AxisTitles(
-//       sideTitles: SideTitles(
-//         showTitles: true,
-//         reservedSize: 30,
-//         interval: interval,
-//         getTitlesWidget: (value, meta) {
-//           if (value == meta.min || value == meta.max)
-//             return const SizedBox.shrink();
-//           final dateTime = DateTime.fromMillisecondsSinceEpoch(value.toInt());
-//           // *** PERBAIKAN ZONA WAKTU ***
-//           final String formattedTime = DateFormat(
-//             'HH:mm',
-//           ).format(dateTime.toLocal());
-//           return SideTitleWidget(
-//             axisSide: meta.axisSide,
-//             child: Text(
-//               formattedTime,
-//               style: const TextStyle(
-//                 fontSize: 10,
-//                 color: Colors.black54,
-//                 fontWeight: FontWeight.bold,
-//               ),
-//             ),
-//           );
-//         },
-//       ),
-//     );
-//   }
-
-//   Widget _buildAverageTemperatureChip() {
-//     return Chip(
-//       avatar: const Icon(
-//         Icons.thermostat_outlined,
-//         color: AppColors.primaryColor,
-//       ),
-//       label: Text(
-//         'Rata-rata: ${_avgTemperature.toStringAsFixed(1)} °C',
-//         style: const TextStyle(
-//           color: AppColors.primaryColor,
-//           fontWeight: FontWeight.bold,
-//         ),
-//       ),
-//       backgroundColor: AppColors.primaryColor.withOpacity(0.15),
-//       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-//       labelStyle: const TextStyle(fontSize: 14),
-//     );
-//   }
-// }
-
+// lib\screens\dashboard\pages\suhu_content.dart
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math'; // Diperlukan untuk kalkulasi min/max
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
@@ -413,6 +59,12 @@ class _SuhuContentState extends State<SuhuContent> {
   // State Grafik Real-time
   Timer? _realtimeTimer;
   List<_SuhuRealtimeDataPoint> _suhuRealtimeDataPoints = [];
+
+  // State untuk panning dan viewport
+  static const Duration _visibleDuration = Duration(minutes: 5);
+  double? _minXVisible, _maxXVisible;
+  bool _isAtLiveEdge = true;
+  Offset? _lastPanPosition;
 
   @override
   void initState() {
@@ -510,7 +162,6 @@ class _SuhuContentState extends State<SuhuContent> {
   Future<void> _loadRealtimeDataFromPrefs() async {
     final prefs = await SharedPreferences.getInstance();
     final savedDataJson = prefs.getString(_getRealtimeDataKey());
-
     if (savedDataJson != null) {
       final List<dynamic> decodedList = json.decode(savedDataJson);
       final loadedPoints = decodedList
@@ -528,23 +179,40 @@ class _SuhuContentState extends State<SuhuContent> {
     await prefs.setString(_getRealtimeDataKey(), dataToSave);
   }
 
+  void _updateVisibleXRange() {
+    if (_suhuRealtimeDataPoints.isEmpty) return;
+
+    final lastTimestamp = _suhuRealtimeDataPoints.last.timestamp;
+    setState(() {
+      _maxXVisible = lastTimestamp.millisecondsSinceEpoch.toDouble();
+      _minXVisible = lastTimestamp
+          .subtract(_visibleDuration)
+          .millisecondsSinceEpoch
+          .toDouble();
+    });
+  }
+
+  void _scrollToLive() {
+    setState(() {
+      _isAtLiveEdge = true;
+      _updateVisibleXRange();
+    });
+  }
+
   Future<void> _startRealtimeUpdates() async {
     _realtimeTimer?.cancel();
     _clearRealtimeData();
     if (_selectedDevice == null) return;
 
     await _loadRealtimeDataFromPrefs();
-
-    if (_suhuRealtimeDataPoints.isEmpty) {
-      await _fetchLatestSuhuData(saveData: false);
-    }
+    _scrollToLive();
 
     _realtimeTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
       _fetchLatestSuhuData();
     });
   }
 
-  Future<void> _fetchLatestSuhuData({bool saveData = true}) async {
+  Future<void> _fetchLatestSuhuData() async {
     if (_selectedDevice == null || !mounted) return;
     try {
       final latestData = await _deviceService.getLatestData(
@@ -557,11 +225,15 @@ class _SuhuContentState extends State<SuhuContent> {
             temperature: latestData.temperature,
           );
           _suhuRealtimeDataPoints.add(newPoint);
-          if (_suhuRealtimeDataPoints.length > 30) {
+          if (_suhuRealtimeDataPoints.length > 500) {
             _suhuRealtimeDataPoints.removeAt(0);
           }
+
+          if (_isAtLiveEdge) {
+            _updateVisibleXRange();
+          }
         });
-        if (saveData) await _saveRealtimeDataToPrefs();
+        await _saveRealtimeDataToPrefs();
       }
     } catch (e) {
       print("Gagal mengambil data suhu real-time: $e");
@@ -683,56 +355,66 @@ class _SuhuContentState extends State<SuhuContent> {
       crossAxisSpacing: 16,
       childAspectRatio: childAspectRatio,
       children: [
+        // ✅ PERUBAHAN: Kirim nilai 'isMobile' ke setiap kartu
         _buildSummaryCard(
           'Suhu Rata-rata',
           _periodAvgTemp.toStringAsFixed(1),
           Icons.thermostat_outlined,
+          isMobile: isMobile, // Tambahkan ini
         ),
         _buildSummaryCard(
           'Suhu Tertinggi',
           _periodMaxTemp.toStringAsFixed(1),
           Icons.arrow_upward,
+          isMobile: isMobile, // Tambahkan ini
         ),
         _buildSummaryCard(
           'Suhu Terendah',
           _periodMinTemp.toStringAsFixed(1),
           Icons.arrow_downward,
+          isMobile: isMobile, // Tambahkan ini
         ),
       ],
     );
   }
 
-  Widget _buildSummaryCard(String title, String value, IconData icon) {
+  Widget _buildSummaryCard(
+    String title,
+    String value,
+    IconData icon, {
+    required bool isMobile,
+  }) {
+    // Tambahkan parameter isMobile
+    // Definisikan konten utama di dalam sebuah widget
+    final Widget content = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Text(title, style: TextStyle(color: Colors.grey[600], fontSize: 14)),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Text(
+              '$value°C',
+              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(width: 8),
+            Icon(icon, color: Colors.orange.shade700, size: 24),
+          ],
+        ),
+      ],
+    );
+
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       color: Colors.white,
       child: Padding(
         padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              title,
-              style: TextStyle(color: Colors.grey[600], fontSize: 14),
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Text(
-                  '$value°C',
-                  style: const TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const Spacer(),
-                Icon(icon, color: Colors.orange.shade700),
-              ],
-            ),
-          ],
-        ),
+        // ✅ PERUBAHAN: Gunakan FittedBox hanya jika isMobile true
+        child: isMobile
+            ? FittedBox(fit: BoxFit.contain, child: content)
+            : content, // Jika bukan mobile, tampilkan konten ukuran asli
       ),
     );
   }
@@ -833,7 +515,6 @@ class _SuhuContentState extends State<SuhuContent> {
                             sideTitles: SideTitles(
                               showTitles: true,
                               reservedSize: 22,
-                              // PERBAIKAN: Memastikan interval tidak nol
                               interval: spots.length > 1
                                   ? (spots.last.x - spots.first.x) / 4
                                   : 1000,
@@ -887,16 +568,24 @@ class _SuhuContentState extends State<SuhuContent> {
 
     double minY = 0, maxY = 50; // Default
     if (_suhuRealtimeDataPoints.isNotEmpty) {
-      final temps = _suhuRealtimeDataPoints.map((p) => p.temperature);
-      minY = temps.reduce(min);
-      maxY = temps.reduce(max);
-      if (minY == maxY) {
-        minY = max(0, minY - 5);
-        maxY += 5;
+      final visiblePoints = _suhuRealtimeDataPoints.where((p) {
+        final time = p.timestamp.millisecondsSinceEpoch.toDouble();
+        return time >= (_minXVisible ?? 0) &&
+            time <= (_maxXVisible ?? double.infinity);
+      });
+
+      if (visiblePoints.isNotEmpty) {
+        final temps = visiblePoints.map((p) => p.temperature);
+        minY = temps.reduce(min);
+        maxY = temps.reduce(max);
+        if (minY == maxY) {
+          minY = max(0, minY - 5);
+          maxY += 5;
+        }
+        final padding = (maxY - minY) * 0.2;
+        minY = max(0, minY - padding);
+        maxY += padding;
       }
-      final padding = (maxY - minY) * 0.2; // Buffer 20%
-      minY = max(0, minY - padding);
-      maxY += padding;
     }
 
     return Card(
@@ -908,9 +597,19 @@ class _SuhuContentState extends State<SuhuContent> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Grafik Suhu Real-time',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Grafik Suhu Real-time',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+                if (!_isAtLiveEdge)
+                  TextButton(
+                    onPressed: _scrollToLive,
+                    child: const Text('Go to Live'),
+                  ),
+              ],
             ),
             const SizedBox(height: 24),
             AspectRatio(
@@ -919,10 +618,80 @@ class _SuhuContentState extends State<SuhuContent> {
                   ? const Center(child: Text('Menunggu data real-time...'))
                   : LineChart(
                       LineChartData(
-                        clipData: const FlClipData.all(),
+                        minX: _minXVisible,
+                        maxX: _maxXVisible,
                         minY: minY,
                         maxY: maxY,
+                        clipData: const FlClipData.all(),
                         lineTouchData: LineTouchData(
+                          touchCallback:
+                              (
+                                FlTouchEvent event,
+                                LineTouchResponse? response,
+                              ) {
+                                if (!mounted) return;
+
+                                if (event is FlPanStartEvent) {
+                                  setState(() {
+                                    _isAtLiveEdge = false;
+                                    _lastPanPosition = event
+                                        .localPosition; // Store start position
+                                  });
+                                } else if (event is FlPanUpdateEvent) {
+                                  if (_minXVisible == null ||
+                                      _maxXVisible == null ||
+                                      _lastPanPosition == null)
+                                    return;
+
+                                  final double dx =
+                                      event.localPosition.dx -
+                                      _lastPanPosition!.dx;
+
+                                  final chartWidth = context.size?.width ?? 1;
+                                  final dataPerPixel =
+                                      (_maxXVisible! - _minXVisible!) /
+                                      chartWidth;
+                                  final dataDx = dx * dataPerPixel;
+
+                                  setState(() {
+                                    final firstDataX = _suhuRealtimeDataPoints
+                                        .first
+                                        .timestamp
+                                        .millisecondsSinceEpoch
+                                        .toDouble();
+                                    final lastDataX = _suhuRealtimeDataPoints
+                                        .last
+                                        .timestamp
+                                        .millisecondsSinceEpoch
+                                        .toDouble();
+
+                                    double newMinX = _minXVisible! - dataDx;
+                                    double newMaxX = _maxXVisible! - dataDx;
+
+                                    if (newMinX < firstDataX) {
+                                      newMinX = firstDataX;
+                                      newMaxX =
+                                          newMinX +
+                                          _visibleDuration.inMilliseconds;
+                                    }
+                                    if (newMaxX > lastDataX) {
+                                      newMaxX = lastDataX;
+                                      newMinX =
+                                          newMaxX -
+                                          _visibleDuration.inMilliseconds;
+                                      _isAtLiveEdge = true;
+                                    }
+
+                                    _minXVisible = newMinX;
+                                    _maxXVisible = newMaxX;
+                                    _lastPanPosition = event
+                                        .localPosition; // Update last position
+                                  });
+                                } else if (event is FlPanEndEvent ||
+                                    event is FlLongPressEnd) {
+                                  _lastPanPosition = null; // Reset on end
+                                }
+                              },
                           handleBuiltInTouches: true,
                           touchTooltipData: LineTouchTooltipData(
                             getTooltipColor: (touchedSpot) => Colors.black87,
@@ -991,13 +760,7 @@ class _SuhuContentState extends State<SuhuContent> {
                             sideTitles: SideTitles(
                               showTitles: true,
                               reservedSize: 22,
-                              // PERBAIKAN: Memastikan interval tidak nol
-                              interval: spots.length > 1
-                                  ? (spots.last.x - spots.first.x) / 4
-                                  : 1000,
                               getTitlesWidget: (value, meta) {
-                                if (meta.max == value || meta.min == value)
-                                  return Container();
                                 return SideTitleWidget(
                                   axisSide: meta.axisSide,
                                   space: 8,

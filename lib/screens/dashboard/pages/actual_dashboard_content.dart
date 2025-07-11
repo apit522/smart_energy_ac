@@ -494,43 +494,55 @@ class _ActualDashboardContentState extends State<ActualDashboardContent> {
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      // UPDATED: Card color set to white
       color: Colors.white,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-        child: Row(
+        // Menggunakan Wrap agar bisa turun baris jika layar sempit
+        child: Wrap(
+          spacing: 16.0, // Jarak horizontal antar item
+          runSpacing: 8.0, // Jarak vertikal jika ada baris baru
+          crossAxisAlignment: WrapCrossAlignment.center,
+          alignment: WrapAlignment.spaceBetween,
           children: [
-            const Icon(Icons.devices, color: AppColors.primaryColor),
-            const SizedBox(width: 8),
-            Expanded(
-              flex: 3,
-              child: DropdownButtonHideUnderline(
-                child: DropdownButton<Device>(
-                  value: _selectedDevice,
-                  isExpanded: true,
-                  hint: const Text('Pilih Perangkat'),
-                  items: _devices
-                      .map(
-                        (d) => DropdownMenuItem(
-                          value: d,
-                          child: Text(d.name, overflow: TextOverflow.ellipsis),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: _onDeviceChanged,
-                ),
+            // Perangkat Dropdown
+            IntrinsicWidth(
+              // Membatasi lebar sesuai konten
+              child: Row(
+                children: [
+                  const Icon(Icons.devices, color: AppColors.primaryColor),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<Device>(
+                        value: _selectedDevice,
+                        isExpanded: true,
+                        hint: const Text('Pilih Perangkat'),
+                        items: _devices
+                            .map(
+                              (d) => DropdownMenuItem(
+                                value: d,
+                                child: Text(
+                                  d.name,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: _onDeviceChanged,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(width: 8),
-            Expanded(
-              flex: 2,
-              child: TextButton.icon(
-                onPressed: _selectDate,
-                icon: const Icon(Icons.calendar_today_outlined, size: 18),
-                label: Text(DateFormat('d MMM yy').format(_selectedDate)),
-                style: TextButton.styleFrom(
-                  foregroundColor: AppColors.primaryColor,
-                ),
+
+            // Tombol Tanggal
+            TextButton.icon(
+              onPressed: _selectDate,
+              icon: const Icon(Icons.calendar_today_outlined, size: 18),
+              label: Text(DateFormat('d MMM yy').format(_selectedDate)),
+              style: TextButton.styleFrom(
+                foregroundColor: AppColors.primaryColor,
               ),
             ),
           ],
@@ -893,10 +905,10 @@ class _ActualDashboardContentState extends State<ActualDashboardContent> {
     );
   }
 
-  // UPDATED: Card color is now white, but text color remains dynamic for status indication
   Widget _buildEfficiencyCard() {
     final double eer = _trendingData?.currentEfficiency ?? 0.0;
 
+    // ... (Logika untuk starRating, efficiencyLabel, dll. tetap sama persis)
     String starRating = 'N/A';
     String efficiencyLabel = 'Data Tidak Cukup';
     String recommendation =
@@ -941,12 +953,18 @@ class _ActualDashboardContentState extends State<ActualDashboardContent> {
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       color: Colors.white,
+      // ✅ PERBAIKAN: Hapus Container dengan tinggi tetap.
+      // Biarkan padding langsung membungkus Column.
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
+          // ✅ PERBAIKAN: Hapus mainAxisAlignment.spaceBetween
+          // Kita akan atur spasi secara manual dengan SizedBox.
+          mainAxisSize: MainAxisSize.min, // Membuat Column seukuran kontennya
           children: [
             Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Icon(Icons.verified_user_outlined, color: textColor),
                 const SizedBox(width: 8),
@@ -967,45 +985,53 @@ class _ActualDashboardContentState extends State<ActualDashboardContent> {
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(),
                   tooltip: 'Apa itu EER?',
-                  onPressed: () {
-                    _showEerInfoDialog(context);
-                  },
+                  onPressed: () => _showEerInfoDialog(context),
                 ),
               ],
             ),
-            const Spacer(),
-            Text(
-              starRating,
-              style: TextStyle(
-                fontSize: 28,
-                color: textColor,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            Text(
-              efficiencyLabel,
-              style: TextStyle(
-                fontSize: 16,
-                color: textColor,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            // -- BARIS BARU DITAMBAHKAN DI SINI --
-            // Hanya tampilkan jika ada nilai EER yang valid
-            if (eer > 0)
-              Padding(
-                padding: const EdgeInsets.only(top: 6.0),
-                child: Text(
-                  'Nilai EER: ${eer.toStringAsFixed(2)}',
+
+            // ✅ PERBAIKAN: Gunakan SizedBox untuk spasi yang jelas.
+            const SizedBox(height: 16.0),
+
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  starRating,
                   style: TextStyle(
-                    fontSize: 14,
+                    fontSize: 28,
                     color: textColor,
-                    fontWeight: FontWeight.w500,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
-              ),
-            const Spacer(),
-            const Divider(),
+                Text(
+                  efficiencyLabel,
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: textColor,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                if (eer > 0)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6.0),
+                    child: Text(
+                      'Nilai EER: ${eer.toStringAsFixed(2)}',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: textColor,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+
+            // ✅ PERBAIKAN: Gunakan SizedBox lagi untuk spasi sebelum divider.
+            const SizedBox(height: 16.0),
+
+            const Divider(height: 1),
+            const SizedBox(height: 8.0),
             Text(
               recommendation,
               style: TextStyle(fontSize: 13, color: textColor.withOpacity(0.9)),
@@ -1024,25 +1050,22 @@ class _ActualDashboardContentState extends State<ActualDashboardContent> {
       );
     }
 
+    // Gunakan LayoutBuilder untuk mengubah tata letak berdasarkan lebar layar
     return LayoutBuilder(
       builder: (context, constraints) {
-        // Tampilan untuk layar lebar (misal > 900px)
-        if (constraints.maxWidth > 900) {
+        // Tampilan untuk layar lebar (misalnya tablet/desktop)
+        if (constraints.maxWidth > 700) {
           return IntrinsicHeight(
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Kolom 1: Kartu Efisiensi
                 Expanded(
-                  // UPDATED: flex factor changed to 1 for balanced width
-                  flex: 1,
+                  flex: 2, // Beri ruang lebih untuk kartu efisiensi
                   child: _buildEfficiencyCard(),
                 ),
                 const SizedBox(width: 16),
-                // Kolom 2: Tiga kartu ringkasan
                 Expanded(
-                  // UPDATED: flex factor changed to 1 for balanced width
-                  flex: 1,
+                  flex: 3, // Beri ruang lebih untuk 3 kartu ringkasan
                   child: Column(
                     children: [
                       Expanded(
@@ -1082,7 +1105,7 @@ class _ActualDashboardContentState extends State<ActualDashboardContent> {
           );
         }
 
-        // Tampilan untuk layar kecil (mobile)
+        // Tampilan default untuk layar kecil (mobile)
         return Column(
           children: [
             _buildEfficiencyCard(),

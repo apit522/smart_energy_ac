@@ -1,8 +1,7 @@
-// lib/screens/dashboard/pages/konsumsi_daya_content.dart
-
 import 'dart:async';
 import 'dart:convert';
-import 'dart:math'; // Diperlukan untuk kalkulasi min/max
+import 'dart:math';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
@@ -11,6 +10,10 @@ import '../../../models/device_model.dart';
 import '../../../models/device_daily_summary_model.dart';
 import '../../../services/device_service.dart';
 import '../../../utils/app_colors.dart';
+import 'top_konsumsi_bulanan_content.dart'; // <-- IMPORT HALAMAN BARU
+
+// Enum untuk mengelola halaman yang aktif
+enum _KonsumsiDayaPage { analisis, topBulanan }
 
 // Kelas data untuk grafik real-time, menyimpan timestamp
 class _RealtimeDataPoint {
@@ -41,6 +44,10 @@ class KonsumsiDayaContent extends StatefulWidget {
 class _KonsumsiDayaContentState extends State<KonsumsiDayaContent> {
   final DeviceService _deviceService = DeviceService();
 
+  // State Halaman
+  _KonsumsiDayaPage _selectedPage =
+      _KonsumsiDayaPage.analisis; // <-- STATE BARU
+
   // State UI
   bool _isLoading = true;
   List<Device> _devices = [];
@@ -61,6 +68,12 @@ class _KonsumsiDayaContentState extends State<KonsumsiDayaContent> {
   // State Grafik Real-time
   Timer? _realtimeTimer;
   List<_RealtimeDataPoint> _realtimeDataPoints = [];
+
+  // State untuk panning dan viewport
+  static const Duration _visibleDuration = Duration(minutes: 5);
+  double? _minXVisible, _maxXVisible;
+  bool _isAtLiveEdge = true;
+  Offset? _lastPanPosition;
 
   @override
   void initState() {
@@ -159,11 +172,10 @@ class _KonsumsiDayaContentState extends State<KonsumsiDayaContent> {
       );
   }
 
-  // --- LOGIKA PERSISTENSI REAL-TIME ---
-
+  // --- LOGIKA PERSISTENSI, PANNING, DAN REAL-TIME ---
+  // ... (Tidak ada perubahan di bagian ini, tetap sama) ...
   String _getRealtimeDataKey() =>
       'realtime_watt_data_${_selectedDevice?.id ?? 'null'}';
-
   Future<void> _loadRealtimeDataFromPrefs() async {
     final prefs = await SharedPreferences.getInstance();
     final savedDataJson = prefs.getString(_getRealtimeDataKey());
@@ -184,23 +196,37 @@ class _KonsumsiDayaContentState extends State<KonsumsiDayaContent> {
     await prefs.setString(_getRealtimeDataKey(), dataToSave);
   }
 
+  void _updateVisibleXRange() {
+    if (_realtimeDataPoints.isEmpty) return;
+    final lastTimestamp = _realtimeDataPoints.last.timestamp;
+    setState(() {
+      _maxXVisible = lastTimestamp.millisecondsSinceEpoch.toDouble();
+      _minXVisible = lastTimestamp
+          .subtract(_visibleDuration)
+          .millisecondsSinceEpoch
+          .toDouble();
+    });
+  }
+
+  void _scrollToLive() {
+    setState(() {
+      _isAtLiveEdge = true;
+      _updateVisibleXRange();
+    });
+  }
+
   Future<void> _startRealtimeUpdates() async {
     _realtimeTimer?.cancel();
     _clearRealtimeData();
     if (_selectedDevice == null) return;
-
     await _loadRealtimeDataFromPrefs();
-
-    if (_realtimeDataPoints.isEmpty) {
-      await _fetchLatestWattData(saveData: false);
-    }
-
+    _scrollToLive();
     _realtimeTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
       _fetchLatestWattData();
     });
   }
 
-  Future<void> _fetchLatestWattData({bool saveData = true}) async {
+  Future<void> _fetchLatestWattData() async {
     if (_selectedDevice == null || !mounted) return;
     try {
       final latestData = await _deviceService.getLatestData(
@@ -213,11 +239,14 @@ class _KonsumsiDayaContentState extends State<KonsumsiDayaContent> {
             watt: latestData.watt,
           );
           _realtimeDataPoints.add(newPoint);
-          if (_realtimeDataPoints.length > 30) {
+          if (_realtimeDataPoints.length > 500) {
             _realtimeDataPoints.removeAt(0);
           }
+          if (_isAtLiveEdge) {
+            _updateVisibleXRange();
+          }
         });
-        if (saveData) await _saveRealtimeDataToPrefs();
+        await _saveRealtimeDataToPrefs();
       }
     } catch (e) {
       print("Gagal mengambil data real-time: $e");
@@ -233,44 +262,107 @@ class _KonsumsiDayaContentState extends State<KonsumsiDayaContent> {
     return LayoutBuilder(
       builder: (context, constraints) {
         bool isMobile = constraints.maxWidth < 850;
+        // <-- STRUKTUR BUILD UTAMA YANG BARU
         return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildFilterBar(isMobile: isMobile),
-            const SizedBox(height: 24),
-            _isLoading
-                ? const Expanded(
-                    child: Center(child: CircularProgressIndicator()),
-                  )
-                : Expanded(
-                    child: _selectedDevice == null
-                        ? const Center(
-                            child: Text(
-                              'Tidak ada perangkat terpilih.',
-                              textAlign: TextAlign.center,
-                            ),
-                          )
-                        : SingleChildScrollView(
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 16.0,
-                              ),
-                              child: Column(
-                                children: [
-                                  _buildSummaryCards(isMobile: isMobile),
-                                  const SizedBox(height: 24),
-                                  _buildChartsSection(isMobile: isMobile),
-                                  const SizedBox(height: 24),
-                                ],
-                              ),
-                            ),
-                          ),
-                  ),
+            // 1. Selector Halaman
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+              child: _buildPageSelector(),
+            ),
+            const SizedBox(height: 16),
+
+            // 2. Konten Halaman yang Aktif
+            Expanded(
+              child: _selectedPage == _KonsumsiDayaPage.analisis
+                  ? _buildAnalisisContent(isMobile)
+                  : TopKonsumsiBulananContent(
+                      devices: _devices, // Kirim daftar semua perangkat
+                      selectedDevice:
+                          _selectedDevice, // Kirim perangkat yang sedang dipilih
+                      onDeviceChanged: (device) {
+                        // Kirim fungsi untuk mengubah perangkat
+                        if (device != null &&
+                            device.id != _selectedDevice?.id) {
+                          // Cukup perbarui state di parent, child akan handle data fetching-nya sendiri
+                          setState(() => _selectedDevice = device);
+                        }
+                      },
+                    ),
+            ),
           ],
         );
       },
     );
   }
 
+  // WIDGET BARU: Selector halaman
+  Widget _buildPageSelector() {
+    return ToggleButtons(
+      isSelected: [
+        _selectedPage == _KonsumsiDayaPage.analisis,
+        _selectedPage == _KonsumsiDayaPage.topBulanan,
+      ],
+      onPressed: (index) {
+        setState(() {
+          _selectedPage = _KonsumsiDayaPage.values[index];
+        });
+      },
+      borderRadius: BorderRadius.circular(8.0),
+      selectedBorderColor: AppColors.primaryColor,
+      selectedColor: Colors.white,
+      fillColor: AppColors.primaryColor,
+      color: AppColors.primaryColor,
+      constraints: const BoxConstraints(minHeight: 40.0),
+      children: const [
+        Padding(
+          padding: EdgeInsets.symmetric(horizontal: 16.0),
+          child: Text('Analisis Konsumsi Daya'),
+        ),
+        Padding(
+          padding: EdgeInsets.symmetric(horizontal: 16.0),
+          child: Text('Top Konsumsi Bulanan'),
+        ),
+      ],
+    );
+  }
+
+  // WIDGET BARU: Mengelompokkan konten analisis yang sudah ada
+  Widget _buildAnalisisContent(bool isMobile) {
+    return Column(
+      children: [
+        _buildFilterBar(isMobile: isMobile),
+        const SizedBox(height: 24),
+        _isLoading
+            ? const Expanded(child: Center(child: CircularProgressIndicator()))
+            : Expanded(
+                child: _selectedDevice == null
+                    ? const Center(
+                        child: Text(
+                          'Tidak ada perangkat terpilih.',
+                          textAlign: TextAlign.center,
+                        ),
+                      )
+                    : SingleChildScrollView(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                          child: Column(
+                            children: [
+                              _buildSummaryCards(isMobile: isMobile),
+                              const SizedBox(height: 24),
+                              _buildChartsSection(isMobile: isMobile),
+                              const SizedBox(height: 24),
+                            ],
+                          ),
+                        ),
+                      ),
+              ),
+      ],
+    );
+  }
+
+  // --- Widget-widget lainnya tetap sama ---
   Widget _buildFilterBar({required bool isMobile}) {
     final dateFormat = DateFormat('d MMM y');
     return Card(
@@ -311,7 +403,10 @@ class _KonsumsiDayaContentState extends State<KonsumsiDayaContent> {
       onChanged: (device) {
         if (device != null && device.id != _selectedDevice?.id) {
           setState(() => _selectedDevice = device);
-          _fetchSummaryData();
+          // Pastikan hanya fetch data jika di halaman analisis
+          if (_selectedPage == _KonsumsiDayaPage.analisis) {
+            _fetchSummaryData();
+          }
         }
       },
     ),
@@ -326,6 +421,14 @@ class _KonsumsiDayaContentState extends State<KonsumsiDayaContent> {
     style: TextButton.styleFrom(foregroundColor: AppColors.primaryColor),
   );
 
+  // ... (Sisa kode dari _buildSummaryCards sampai akhir tidak perlu diubah) ...
+  // Salin dan tempel semua method widget dari _buildSummaryCards ke bawah dari kode asli Anda.
+  // Method-method berikut ini tidak berubah:
+  // - _buildSummaryCards
+  // - _buildSummaryCard
+  // - _buildChartsSection
+  // - _buildDailyChartCard
+  // - _buildRealtimeChartCard
   Widget _buildSummaryCards({required bool isMobile}) {
     final currencyFormatter = NumberFormat.currency(
       locale: 'id_ID',
@@ -389,21 +492,27 @@ class _KonsumsiDayaContentState extends State<KonsumsiDayaContent> {
       color: Colors.white,
       child: Padding(
         padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              title,
-              style: TextStyle(color: Colors.grey[600], fontSize: 14),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              '$value $unit'.trim(),
-              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
+        child: FittedBox(
+          fit: BoxFit.contain,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                title,
+                style: TextStyle(color: Colors.grey[600], fontSize: 14),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '$value $unit'.trim(),
+                style: const TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -560,16 +669,24 @@ class _KonsumsiDayaContentState extends State<KonsumsiDayaContent> {
 
     double minY = 0, maxY = 100; // Default
     if (_realtimeDataPoints.isNotEmpty) {
-      final wattValues = _realtimeDataPoints.map((p) => p.watt);
-      minY = wattValues.reduce(min);
-      maxY = wattValues.reduce(max);
-      if (minY == maxY) {
-        minY = max(0, minY - 50);
-        maxY += 50;
+      final visiblePoints = _realtimeDataPoints.where((p) {
+        final time = p.timestamp.millisecondsSinceEpoch.toDouble();
+        return time >= (_minXVisible ?? 0) &&
+            time <= (_maxXVisible ?? double.infinity);
+      });
+
+      if (visiblePoints.isNotEmpty) {
+        final wattValues = visiblePoints.map((p) => p.watt);
+        minY = wattValues.reduce(min);
+        maxY = wattValues.reduce(max);
+        if (minY == maxY) {
+          minY = max(0, minY - 50);
+          maxY += 50;
+        }
+        final padding = (maxY - minY) * 0.2;
+        minY = max(0, minY - padding);
+        maxY += padding;
       }
-      final padding = (maxY - minY) * 0.2;
-      minY = max(0, minY - padding);
-      maxY += padding;
     }
 
     return Card(
@@ -581,9 +698,19 @@ class _KonsumsiDayaContentState extends State<KonsumsiDayaContent> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Grafik Daya Real-time (Watt)',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Grafik Daya Real-time (Watt)',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+                if (!_isAtLiveEdge)
+                  TextButton(
+                    onPressed: _scrollToLive,
+                    child: const Text('Go to Live'),
+                  ),
+              ],
             ),
             const SizedBox(height: 24),
             AspectRatio(
@@ -592,10 +719,77 @@ class _KonsumsiDayaContentState extends State<KonsumsiDayaContent> {
                   ? const Center(child: Text('Menunggu data real-time...'))
                   : LineChart(
                       LineChartData(
-                        clipData: const FlClipData.all(),
+                        minX: _minXVisible,
+                        maxX: _maxXVisible,
                         minY: minY,
                         maxY: maxY,
+                        clipData: const FlClipData.all(),
                         lineTouchData: LineTouchData(
+                          touchCallback:
+                              (
+                                FlTouchEvent event,
+                                LineTouchResponse? response,
+                              ) {
+                                if (!mounted) return;
+
+                                if (event is FlPanStartEvent) {
+                                  setState(() {
+                                    _isAtLiveEdge = false;
+                                    _lastPanPosition = event.localPosition;
+                                  });
+                                } else if (event is FlPanUpdateEvent) {
+                                  if (_minXVisible == null ||
+                                      _maxXVisible == null ||
+                                      _lastPanPosition == null)
+                                    return;
+
+                                  final double dx =
+                                      event.localPosition.dx -
+                                      _lastPanPosition!.dx;
+                                  final chartWidth = context.size?.width ?? 1;
+                                  final dataPerPixel =
+                                      (_maxXVisible! - _minXVisible!) /
+                                      chartWidth;
+                                  final dataDx = dx * dataPerPixel;
+
+                                  setState(() {
+                                    final firstDataX = _realtimeDataPoints
+                                        .first
+                                        .timestamp
+                                        .millisecondsSinceEpoch
+                                        .toDouble();
+                                    final lastDataX = _realtimeDataPoints
+                                        .last
+                                        .timestamp
+                                        .millisecondsSinceEpoch
+                                        .toDouble();
+
+                                    double newMinX = _minXVisible! - dataDx;
+                                    double newMaxX = _maxXVisible! - dataDx;
+
+                                    if (newMinX < firstDataX) {
+                                      newMinX = firstDataX;
+                                      newMaxX =
+                                          newMinX +
+                                          _visibleDuration.inMilliseconds;
+                                    }
+                                    if (newMaxX > lastDataX) {
+                                      newMaxX = lastDataX;
+                                      newMinX =
+                                          newMaxX -
+                                          _visibleDuration.inMilliseconds;
+                                      _isAtLiveEdge = true;
+                                    }
+
+                                    _minXVisible = newMinX;
+                                    _maxXVisible = newMaxX;
+                                    _lastPanPosition = event.localPosition;
+                                  });
+                                } else if (event is FlPanEndEvent ||
+                                    event is FlLongPressEnd) {
+                                  _lastPanPosition = null;
+                                }
+                              },
                           handleBuiltInTouches: true,
                           touchTooltipData: LineTouchTooltipData(
                             getTooltipColor: (touchedSpot) => Colors.black87,
@@ -663,13 +857,7 @@ class _KonsumsiDayaContentState extends State<KonsumsiDayaContent> {
                             sideTitles: SideTitles(
                               showTitles: true,
                               reservedSize: 22,
-                              // PERBAIKAN: Memastikan interval tidak nol
-                              interval: spots.length > 1
-                                  ? (spots.last.x - spots.first.x) / 4
-                                  : 1000,
                               getTitlesWidget: (value, meta) {
-                                if (meta.max == value || meta.min == value)
-                                  return Container();
                                 return SideTitleWidget(
                                   axisSide: meta.axisSide,
                                   space: 8,

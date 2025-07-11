@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart'; // Import intl untuk format Rupiah
-import 'package:timeago/timeago.dart' as timeago; // Import timeago
-
-// Pastikan path import ini sudah benar
+import 'package:intl/intl.dart';
+import 'package:timeago/timeago.dart' as timeago;
 import '../../../models/device_model.dart';
 import '../../../services/device_service.dart';
 import '../../../utils/app_colors.dart';
@@ -285,7 +283,6 @@ class _DeviceScreenState extends State<DeviceScreen> {
 
   // --- WIDGET HELPER ---
   Widget _buildInfoRow(IconData icon, String label, String value) {
-    /* ... sama seperti sebelumnya ... */
     return Row(
       children: [
         Icon(icon, color: Colors.grey[600], size: 16),
@@ -306,7 +303,6 @@ class _DeviceScreenState extends State<DeviceScreen> {
   }
 
   Widget _buildStatusChip(bool isConnected) {
-    /* ... sama seperti sebelumnya ... */
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
@@ -324,7 +320,9 @@ class _DeviceScreenState extends State<DeviceScreen> {
     );
   }
 
-  // --- DIALOGS (dengan perbaikan dari kode Anda & penyesuaian) ---
+  // --- DIALOGS (TAMPILAN BARU) ---
+
+  /// 🎨 Dialog untuk Tambah atau Edit Perangkat dengan UI yang lebih baik
   void _showDeviceDialog({Device? device}) {
     final isEditing = device != null;
     final formKey = GlobalKey<FormState>();
@@ -332,11 +330,8 @@ class _DeviceScreenState extends State<DeviceScreen> {
     final locationController = TextEditingController(text: device?.location);
     final uniqueIdController = TextEditingController(text: device?.uniqueId);
     final btuController = TextEditingController(text: device?.btu?.toString());
-
-    // State untuk dropdown daya
     int? selectedDayaVa = device?.dayaVa;
 
-    // Opsi untuk dropdown
     final List<Map<String, Object>> dayaOptions = [
       {'text': '900 VA', 'value': 900},
       {'text': '1.300 VA', 'value': 1300},
@@ -350,12 +345,25 @@ class _DeviceScreenState extends State<DeviceScreen> {
     showDialog(
       context: context,
       builder: (context) {
-        // Gunakan StatefulBuilder agar dropdown bisa update di dalam dialog
         return StatefulBuilder(
           builder: (context, setStateDialog) {
             return AlertDialog(
-              title: Text(
-                isEditing ? 'Edit Perangkat' : 'Tambah Perangkat Baru',
+              // Tampilan lebih modern dengan sudut membulat
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16.0),
+              ),
+              // Judul dengan icon untuk hierarki visual
+              title: Row(
+                children: [
+                  Icon(
+                    isEditing
+                        ? Icons.edit_note_outlined
+                        : Icons.add_circle_outline,
+                    color: AppColors.primaryColor,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(isEditing ? 'Edit Perangkat' : 'Tambah Perangkat'),
+                ],
               ),
               content: Form(
                 key: formKey,
@@ -365,30 +373,49 @@ class _DeviceScreenState extends State<DeviceScreen> {
                     children: [
                       TextFormField(
                         controller: nameController,
-                        decoration: const InputDecoration(
+                        decoration: InputDecoration(
                           labelText: 'Nama Perangkat',
+                          prefixIcon: const Icon(Icons.devices_other_outlined),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
                         ),
                         validator: (v) =>
                             v!.isEmpty ? 'Nama tidak boleh kosong' : null,
                       ),
+                      const SizedBox(height: 16),
                       TextFormField(
                         controller: locationController,
-                        decoration: const InputDecoration(
-                          labelText: 'Lokasi (cth: Rumah 2)',
+                        decoration: InputDecoration(
+                          labelText: 'Lokasi',
+                          prefixIcon: const Icon(Icons.location_on_outlined),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
                         ),
                       ),
+                      const SizedBox(height: 16),
                       TextFormField(
                         controller: uniqueIdController,
-                        decoration: const InputDecoration(
+                        decoration: InputDecoration(
                           labelText: 'Unique ID',
+                          prefixIcon: const Icon(Icons.memory_outlined),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
                         ),
                         validator: (v) =>
                             v!.isEmpty ? 'Unique ID tidak boleh kosong' : null,
                       ),
+                      const SizedBox(height: 16),
                       TextFormField(
                         controller: btuController,
-                        decoration: const InputDecoration(
-                          labelText: 'BTU/jam (Opsional)',
+                        decoration: InputDecoration(
+                          labelText: 'BTU/jam',
+                          prefixIcon: const Icon(Icons.ac_unit_outlined),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
                         ),
                         keyboardType: TextInputType.number,
                       ),
@@ -396,6 +423,13 @@ class _DeviceScreenState extends State<DeviceScreen> {
                       DropdownButtonFormField<int>(
                         value: selectedDayaVa,
                         hint: const Text('Pilih Daya Listrik'),
+                        decoration: InputDecoration(
+                          labelText: 'Daya Listrik',
+                          prefixIcon: const Icon(Icons.flash_on_outlined),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
                         items: dayaOptions.map((option) {
                           return DropdownMenuItem<int>(
                             value: option['value'] as int?,
@@ -404,7 +438,6 @@ class _DeviceScreenState extends State<DeviceScreen> {
                         }).toList(),
                         onChanged: (value) {
                           setStateDialog(() {
-                            // Gunakan setState dari StatefulBuilder
                             selectedDayaVa = value;
                           });
                         },
@@ -420,14 +453,23 @@ class _DeviceScreenState extends State<DeviceScreen> {
                   onPressed: () => Navigator.of(context).pop(),
                   child: const Text('Batal'),
                 ),
-                ElevatedButton(
+                // Tombol aksi utama lebih menonjol
+                ElevatedButton.icon(
+                  icon: const Icon(Icons.save, size: 18),
+                  label: const Text('Simpan'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primaryColor,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
                   onPressed: () {
                     if (formKey.currentState!.validate()) {
                       final btuValue = btuController.text.isNotEmpty
                           ? int.tryParse(btuController.text)
                           : null;
 
-                      // Blok async dipindahkan ke dalam .then() untuk UI yang lebih responsif
                       Future.value(
                             isEditing
                                 ? _deviceService.updateDevice(
@@ -463,7 +505,6 @@ class _DeviceScreenState extends State<DeviceScreen> {
                       Navigator.of(context).pop();
                     }
                   },
-                  child: const Text('Simpan'),
                 ),
               ],
             );
@@ -473,19 +514,53 @@ class _DeviceScreenState extends State<DeviceScreen> {
     );
   }
 
+  /// 🗑️ Dialog Konfirmasi Hapus dengan UI yang lebih aman dan jelas
   void _confirmDelete(Device device) {
-    // Kode _confirmDelete Anda tidak perlu diubah
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Hapus Perangkat'),
-        content: Text('Anda yakin ingin menghapus perangkat "${device.name}"?'),
+        // Sudut membulat
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16.0),
+        ),
+        // Judul dengan icon peringatan
+        title: Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Colors.orange.shade800),
+            const SizedBox(width: 8),
+            const Text('Hapus Perangkat'),
+          ],
+        ),
+        // Konten yang lebih jelas dengan RichText
+        content: RichText(
+          text: TextSpan(
+            style: DefaultTextStyle.of(context).style,
+            children: <TextSpan>[
+              const TextSpan(text: 'Anda yakin ingin menghapus perangkat '),
+              TextSpan(
+                text: '"${device.name}"',
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+              const TextSpan(text: '? Tindakan ini tidak dapat dibatalkan.'),
+            ],
+          ),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
             child: const Text('Batal'),
           ),
-          TextButton(
+          // Tombol hapus yang lebih menonjol (destructive action)
+          ElevatedButton.icon(
+            icon: const Icon(Icons.delete_forever, size: 18),
+            label: const Text('Hapus'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red.shade700,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
             onPressed: () async {
               try {
                 await _deviceService.deleteDevice(device.id);
@@ -502,7 +577,6 @@ class _DeviceScreenState extends State<DeviceScreen> {
                 }
               }
             },
-            child: const Text('Hapus', style: TextStyle(color: Colors.red)),
           ),
         ],
       ),
