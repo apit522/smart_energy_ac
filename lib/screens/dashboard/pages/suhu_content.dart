@@ -1,13 +1,13 @@
-// lib\screens\dashboard\pages\suhu_content.dart
+// lib/screens/dashboard/pages/suhu_content.dart
+
 import 'dart:async';
-import 'dart:convert';
 import 'dart:math'; // Diperlukan untuk kalkulasi min/max
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../../../models/device_model.dart';
+import '../../../models/device_data_model.dart'; // Impor model DeviceData
 import '../../../models/device_daily_summary_model.dart';
 import '../../../services/device_service.dart';
 import '../../../utils/app_colors.dart';
@@ -18,17 +18,6 @@ class _SuhuRealtimeDataPoint {
   final double temperature;
 
   _SuhuRealtimeDataPoint({required this.timestamp, required this.temperature});
-
-  Map<String, dynamic> toJson() => {
-    'timestamp': timestamp.toIso8601String(),
-    'temperature': temperature,
-  };
-
-  factory _SuhuRealtimeDataPoint.fromJson(Map<String, dynamic> json) =>
-      _SuhuRealtimeDataPoint(
-        timestamp: DateTime.parse(json['timestamp']),
-        temperature: json['temperature'].toDouble(),
-      );
 }
 
 class SuhuContent extends StatefulWidget {
@@ -46,7 +35,7 @@ class _SuhuContentState extends State<SuhuContent> {
   List<Device> _devices = [];
   Device? _selectedDevice;
   DateTimeRange _selectedDateRange = DateTimeRange(
-    start: DateTime.now().subtract(const Duration(days: 6)),
+    start: DateTime.now().subtract(const Duration(days: 31)),
     end: DateTime.now(),
   );
 
@@ -65,6 +54,10 @@ class _SuhuContentState extends State<SuhuContent> {
   double? _minXVisible, _maxXVisible;
   bool _isAtLiveEdge = true;
   Offset? _lastPanPosition;
+
+  // State untuk batas zoom
+  double? _minXData;
+  double? _maxXData;
 
   @override
   void initState() {
@@ -112,7 +105,7 @@ class _SuhuContentState extends State<SuhuContent> {
         endDate: _selectedDateRange.end,
       );
       _calculateStats();
-      await _startRealtimeUpdates();
+      await _startRealtimeUpdates(); // Panggilan utama untuk grafik
     } catch (e) {
       _showError('Error memuat ringkasan suhu: $e');
     } finally {
@@ -141,6 +134,11 @@ class _SuhuContentState extends State<SuhuContent> {
       lastDate: DateTime.now(),
     );
     if (picked != null && picked != _selectedDateRange) {
+      final difference = picked.end.difference(picked.start).inDays + 1;
+      if (difference > 31) {
+        _showError('Maksimal rentang tanggal adalah 31 hari.');
+        return;
+      }
       setState(() => _selectedDateRange = picked);
       await _fetchSummaryData();
     }
@@ -154,34 +152,10 @@ class _SuhuContentState extends State<SuhuContent> {
     }
   }
 
-  // --- LOGIKA REAL-TIME & PERSISTENSI ---
+  // --- LOGIKA BARU UNTUK GRAFIK REAL-TIME ---
 
-  String _getRealtimeDataKey() =>
-      'suhu_realtime_data_${_selectedDevice?.id ?? 'null'}';
-
-  Future<void> _loadRealtimeDataFromPrefs() async {
-    final prefs = await SharedPreferences.getInstance();
-    final savedDataJson = prefs.getString(_getRealtimeDataKey());
-    if (savedDataJson != null) {
-      final List<dynamic> decodedList = json.decode(savedDataJson);
-      final loadedPoints = decodedList
-          .map((item) => _SuhuRealtimeDataPoint.fromJson(item))
-          .toList();
-      if (mounted) setState(() => _suhuRealtimeDataPoints = loadedPoints);
-    }
-  }
-
-  Future<void> _saveRealtimeDataToPrefs() async {
-    final prefs = await SharedPreferences.getInstance();
-    final dataToSave = json.encode(
-      _suhuRealtimeDataPoints.map((p) => p.toJson()).toList(),
-    );
-    await prefs.setString(_getRealtimeDataKey(), dataToSave);
-  }
-
-  void _updateVisibleXRange() {
+  void _updateVisibleXRangeForLive() {
     if (_suhuRealtimeDataPoints.isEmpty) return;
-
     final lastTimestamp = _suhuRealtimeDataPoints.last.timestamp;
     setState(() {
       _maxXVisible = lastTimestamp.millisecondsSinceEpoch.toDouble();
@@ -195,17 +169,158 @@ class _SuhuContentState extends State<SuhuContent> {
   void _scrollToLive() {
     setState(() {
       _isAtLiveEdge = true;
-      _updateVisibleXRange();
+      _updateVisibleXRangeForLive();
+    });
+  }
+
+  void _handleZoom(double scale) {
+    // Pastikan semua nilai yang dibutuhkan tidak null
+    if (_minXVisible == null ||
+        _maxXVisible == null ||
+        _minXData == null ||
+        _maxXData == null) {
+      return;
+    }
+
+    final totalDataRange = _maxXData! - _minXData!;
+    final center = (_maxXVisible! + _minXVisible!) / 2;
+
+    // Hitung rentang baru setelah di-zoom
+    double newRange = (_maxXVisible! - _minXVisible!) / scale;
+
+    // Batasi zoom-out agar tidak lebih lebar dari total data
+    if (newRange > totalDataRange) {
+      newRange = totalDataRange;
+    }
+
+    // ▼▼▼ FIX DI SINI ▼▼▼
+    // Batasi zoom-in agar tidak terlalu dekat
+    final minVisibleRange = const Duration(minutes: 1).inMilliseconds;
+    if (newRange < minVisibleRange) {
+      newRange = minVisibleRange.toDouble();
+    }
+
+    setState(() {
+      _minXVisible = center - newRange / 2;
+      _maxXVisible = center + newRange / 2;
+
+      // Pastikan viewport tidak keluar dari batas data setelah zoom
+      if (_minXVisible! < _minXData!) {
+        _minXVisible = _minXData;
+        _maxXVisible = _minXData! + newRange;
+      }
+      if (_maxXVisible! > _maxXData!) {
+        _maxXVisible = _maxXData;
+        _minXVisible = _maxXData! - newRange;
+      }
+
+      _isAtLiveEdge = false;
+    });
+  }
+
+  void _zoomIn() => _handleZoom(0.8);
+  void _zoomOut() => _handleZoom(1.2);
+
+  void _handleTouchEvent(FlTouchEvent event) {
+    if (event is FlPanStartEvent) {
+      setState(() {
+        _isAtLiveEdge = false;
+        _lastPanPosition = event.localPosition;
+      });
+    } else if (event is FlPanUpdateEvent) {
+      if (_minXVisible == null ||
+          _maxXVisible == null ||
+          _lastPanPosition == null ||
+          _minXData == null ||
+          _maxXData == null)
+        return;
+
+      final double dx = event.localPosition.dx - _lastPanPosition!.dx;
+      final chartWidth = context.size?.width ?? 1;
+      final dataPerPixel = (_maxXVisible! - _minXVisible!) / chartWidth;
+      final dataDx = dx * dataPerPixel;
+
+      setState(() {
+        double visibleWidth = _maxXVisible! - _minXVisible!;
+        double newMinX = _minXVisible! - dataDx;
+        double newMaxX = _maxXVisible! - dataDx;
+
+        if (newMinX < _minXData!) {
+          newMinX = _minXData!;
+          newMaxX = newMinX + visibleWidth;
+        }
+        if (newMaxX > _maxXData!) {
+          newMaxX = _maxXData!;
+          newMinX = newMaxX - visibleWidth;
+          if (!_isAtLiveEdge) {
+            _scrollToLive();
+          }
+        }
+
+        _minXVisible = newMinX;
+        _maxXVisible = newMaxX;
+        _lastPanPosition = event.localPosition;
+      });
+    } else if (event is FlPanEndEvent) {
+      _lastPanPosition = null;
+    }
+  }
+
+  _SuhuRealtimeDataPoint _findClosestDataPoint(double targetX) {
+    if (_suhuRealtimeDataPoints.isEmpty) {
+      return _SuhuRealtimeDataPoint(timestamp: DateTime.now(), temperature: 0);
+    }
+    return _suhuRealtimeDataPoints.reduce((a, b) {
+      final diffA = (a.timestamp.millisecondsSinceEpoch - targetX).abs();
+      final diffB = (b.timestamp.millisecondsSinceEpoch - targetX).abs();
+      return diffA < diffB ? a : b;
     });
   }
 
   Future<void> _startRealtimeUpdates() async {
     _realtimeTimer?.cancel();
     _clearRealtimeData();
-    if (_selectedDevice == null) return;
 
-    await _loadRealtimeDataFromPrefs();
-    _scrollToLive();
+    if (_selectedDevice == null || !mounted) return;
+
+    try {
+      final List<DeviceData> historicalData = await _deviceService
+          .getDeviceData(_selectedDevice!.id, period: '24h');
+
+      if (mounted && historicalData.isNotEmpty) {
+        setState(() {
+          _suhuRealtimeDataPoints = historicalData
+              .map(
+                (data) => _SuhuRealtimeDataPoint(
+                  timestamp: data.timestamp,
+                  temperature: data.temperature,
+                ),
+              )
+              .toList();
+
+          _suhuRealtimeDataPoints.sort(
+            (a, b) => a.timestamp.compareTo(b.timestamp),
+          );
+
+          _minXData = _suhuRealtimeDataPoints
+              .first
+              .timestamp
+              .millisecondsSinceEpoch
+              .toDouble();
+          _maxXData = _suhuRealtimeDataPoints
+              .last
+              .timestamp
+              .millisecondsSinceEpoch
+              .toDouble();
+
+          _minXVisible = _minXData;
+          _maxXVisible = _maxXData;
+          _isAtLiveEdge = true;
+        });
+      }
+    } catch (e) {
+      _showError('Gagal memuat data grafik suhu 24 jam: $e');
+    }
 
     _realtimeTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
       _fetchLatestSuhuData();
@@ -214,6 +329,7 @@ class _SuhuContentState extends State<SuhuContent> {
 
   Future<void> _fetchLatestSuhuData() async {
     if (_selectedDevice == null || !mounted) return;
+
     try {
       final latestData = await _deviceService.getLatestData(
         _selectedDevice!.id,
@@ -221,30 +337,46 @@ class _SuhuContentState extends State<SuhuContent> {
       if (latestData != null) {
         setState(() {
           final newPoint = _SuhuRealtimeDataPoint(
-            timestamp: DateTime.now(),
+            timestamp: latestData.timestamp,
             temperature: latestData.temperature,
           );
           _suhuRealtimeDataPoints.add(newPoint);
-          if (_suhuRealtimeDataPoints.length > 500) {
-            _suhuRealtimeDataPoints.removeAt(0);
+
+          // Perbarui batas data terakhir
+          _maxXData = newPoint.timestamp.millisecondsSinceEpoch.toDouble();
+
+          // Manajemen memori: hapus data > 24 jam
+          final cutoff = DateTime.now().subtract(
+            const Duration(hours: 24, minutes: 5),
+          );
+          _suhuRealtimeDataPoints.removeWhere(
+            (point) => point.timestamp.isBefore(cutoff),
+          );
+
+          // Perbarui batas data pertama jika ada data yang dihapus
+          if (_suhuRealtimeDataPoints.isNotEmpty) {
+            _minXData = _suhuRealtimeDataPoints
+                .first
+                .timestamp
+                .millisecondsSinceEpoch
+                .toDouble();
           }
 
           if (_isAtLiveEdge) {
-            _updateVisibleXRange();
+            _updateVisibleXRangeForLive();
           }
         });
-        await _saveRealtimeDataToPrefs();
       }
     } catch (e) {
       print("Gagal mengambil data suhu real-time: $e");
     }
   }
 
-  void _clearRealtimeData() => setState(() => _suhuRealtimeDataPoints = []);
-
-  // --- UI UTAMA & WIDGET BUILDERS ---
-
-  @override
+  void _clearRealtimeData() => setState(() {
+    _suhuRealtimeDataPoints = [];
+    _minXData = null;
+    _maxXData = null;
+  });
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -344,8 +476,8 @@ class _SuhuContentState extends State<SuhuContent> {
   );
 
   Widget _buildSummaryCards({required bool isMobile}) {
-    int crossAxisCount = isMobile ? 3 : 3;
-    double childAspectRatio = isMobile ? 1.5 : 2.0;
+    int crossAxisCount = isMobile ? 1 : 3;
+    double childAspectRatio = isMobile ? 4.5 : 2.8;
 
     return GridView.count(
       crossAxisCount: crossAxisCount,
@@ -355,66 +487,60 @@ class _SuhuContentState extends State<SuhuContent> {
       crossAxisSpacing: 16,
       childAspectRatio: childAspectRatio,
       children: [
-        // ✅ PERUBAHAN: Kirim nilai 'isMobile' ke setiap kartu
         _buildSummaryCard(
           'Suhu Rata-rata',
           _periodAvgTemp.toStringAsFixed(1),
           Icons.thermostat_outlined,
-          isMobile: isMobile, // Tambahkan ini
         ),
         _buildSummaryCard(
           'Suhu Tertinggi',
           _periodMaxTemp.toStringAsFixed(1),
-          Icons.arrow_upward,
-          isMobile: isMobile, // Tambahkan ini
+          Icons.arrow_upward_rounded,
         ),
         _buildSummaryCard(
           'Suhu Terendah',
           _periodMinTemp.toStringAsFixed(1),
-          Icons.arrow_downward,
-          isMobile: isMobile, // Tambahkan ini
+          Icons.arrow_downward_rounded,
         ),
       ],
     );
   }
 
-  Widget _buildSummaryCard(
-    String title,
-    String value,
-    IconData icon, {
-    required bool isMobile,
-  }) {
-    // Tambahkan parameter isMobile
-    // Definisikan konten utama di dalam sebuah widget
-    final Widget content = Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Text(title, style: TextStyle(color: Colors.grey[600], fontSize: 14)),
-        const SizedBox(height: 8),
-        Row(
-          children: [
-            Text(
-              '$value°C',
-              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(width: 8),
-            Icon(icon, color: Colors.orange.shade700, size: 24),
-          ],
-        ),
-      ],
-    );
-
+  Widget _buildSummaryCard(String title, String value, IconData icon) {
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       color: Colors.white,
       child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        // ✅ PERUBAHAN: Gunakan FittedBox hanya jika isMobile true
-        child: isMobile
-            ? FittedBox(fit: BoxFit.contain, child: content)
-            : content, // Jika bukan mobile, tampilkan konten ukuran asli
+        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: Row(
+            children: [
+              Icon(icon, size: 36, color: Colors.orange.shade700),
+              const SizedBox(width: 16),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(color: Colors.grey[600], fontSize: 14),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '$value°C',
+                    style: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -448,6 +574,24 @@ class _SuhuContentState extends State<SuhuContent> {
       );
     }).toList();
 
+    // Hitung minY dan maxY agar grafik tidak nabrak batas atas
+    double? minY, maxY;
+    if (spots.isNotEmpty) {
+      minY = spots.map((e) => e.y).reduce((a, b) => a < b ? a : b);
+      maxY = spots.map((e) => e.y).reduce((a, b) => a > b ? a : b);
+      if (minY == maxY) {
+        // Jika semua nilai sama, beri padding default
+        minY = minY - 2;
+        maxY = maxY + 2;
+      } else {
+        // Tambahkan padding 15% ke atas dan 20% ke bawah (lebih lebar dari sebelumnya)
+        final range = maxY - minY;
+        minY = minY - range * 0.20;
+        maxY = maxY + range * 0.20;
+      }
+      if (minY < 0) minY = 0;
+    }
+
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -468,88 +612,113 @@ class _SuhuContentState extends State<SuhuContent> {
                   ? const Center(
                       child: Text('Data tidak cukup untuk menampilkan grafik.'),
                     )
-                  : LineChart(
-                      LineChartData(
-                        clipData: const FlClipData.all(),
-                        lineTouchData: LineTouchData(
-                          touchTooltipData: LineTouchTooltipData(
-                            getTooltipColor: (touchedSpot) => Colors.black87,
-                            getTooltipItems: (touchedSpots) {
-                              return touchedSpots.map((spot) {
-                                final date =
-                                    DateTime.fromMillisecondsSinceEpoch(
-                                      spot.x.toInt(),
-                                    );
-                                return LineTooltipItem(
-                                  '${DateFormat('d MMM y').format(date)}\n',
-                                  const TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                  children: [
-                                    TextSpan(
-                                      text: '${spot.y.toStringAsFixed(1)}°C',
-                                      style: const TextStyle(
-                                        color: Colors.orange,
-                                        fontWeight: FontWeight.w500,
+                  : Stack(
+                      children: [
+                        LineChart(
+                          LineChartData(
+                            minY: minY,
+                            maxY: maxY,
+                            clipData: const FlClipData.all(),
+                            lineTouchData: LineTouchData(
+                              touchTooltipData: LineTouchTooltipData(
+                                getTooltipColor: (touchedSpot) =>
+                                    Colors.black87,
+                                getTooltipItems: (touchedSpots) {
+                                  return touchedSpots.map((spot) {
+                                    final date =
+                                        DateTime.fromMillisecondsSinceEpoch(
+                                          spot.x.toInt(),
+                                        );
+                                    return LineTooltipItem(
+                                      '${DateFormat('d MMM y').format(date)}\n',
+                                      const TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
                                       ),
-                                    ),
-                                  ],
-                                );
-                              }).toList();
-                            },
-                          ),
-                        ),
-                        gridData: FlGridData(show: false),
-                        titlesData: FlTitlesData(
-                          leftTitles: const AxisTitles(
-                            sideTitles: SideTitles(showTitles: false),
-                          ),
-                          topTitles: const AxisTitles(
-                            sideTitles: SideTitles(showTitles: false),
-                          ),
-                          rightTitles: const AxisTitles(
-                            sideTitles: SideTitles(showTitles: false),
-                          ),
-                          bottomTitles: AxisTitles(
-                            sideTitles: SideTitles(
-                              showTitles: true,
-                              reservedSize: 22,
-                              interval: spots.length > 1
-                                  ? (spots.last.x - spots.first.x) / 4
-                                  : 1000,
-                              getTitlesWidget: (value, meta) {
-                                final date =
-                                    DateTime.fromMillisecondsSinceEpoch(
-                                      value.toInt(),
+                                      children: [
+                                        TextSpan(
+                                          text:
+                                              '${spot.y.toStringAsFixed(1)}°C',
+                                          style: const TextStyle(
+                                            color: Colors.orange,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                      ],
                                     );
-                                return SideTitleWidget(
-                                  axisSide: meta.axisSide,
-                                  space: 8,
-                                  child: Text(
-                                    DateFormat('d/M').format(date),
-                                    style: const TextStyle(fontSize: 10),
-                                  ),
-                                );
-                              },
+                                  }).toList();
+                                },
+                              ),
                             ),
+                            gridData: const FlGridData(show: false),
+                            titlesData: FlTitlesData(
+                              leftTitles: AxisTitles(
+                                sideTitles: SideTitles(
+                                  showTitles: true,
+                                  reservedSize: 30,
+                                  getTitlesWidget: (value, meta) {
+                                    // Tampilkan label Y seperti biasa
+                                    return Text(
+                                      value.toStringAsFixed(1),
+                                      style: const TextStyle(fontSize: 10),
+                                    );
+                                  },
+                                ),
+                                axisNameWidget: Padding(
+                                  padding: const EdgeInsets.only(
+                                    left: 8.0,
+                                    top: 8.0,
+                                  ),
+                                ),
+                                axisNameSize: 4,
+                              ),
+                              topTitles: const AxisTitles(
+                                sideTitles: SideTitles(showTitles: false),
+                              ),
+                              rightTitles: const AxisTitles(
+                                sideTitles: SideTitles(showTitles: false),
+                              ),
+                              bottomTitles: AxisTitles(
+                                sideTitles: SideTitles(
+                                  showTitles: true,
+                                  reservedSize: 22,
+                                  interval: spots.length > 1
+                                      ? (spots.last.x - spots.first.x) / 4
+                                      : 1000,
+                                  getTitlesWidget: (value, meta) {
+                                    final date =
+                                        DateTime.fromMillisecondsSinceEpoch(
+                                          value.toInt(),
+                                        );
+                                    return SideTitleWidget(
+                                      axisSide: meta.axisSide,
+                                      space: 8,
+                                      child: Text(
+                                        DateFormat('d/M').format(date),
+                                        style: const TextStyle(fontSize: 10),
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ),
+                            ),
+                            borderData: FlBorderData(show: false),
+                            lineBarsData: [
+                              LineChartBarData(
+                                spots: spots,
+                                isCurved: true,
+                                color: Colors.orange.shade700,
+                                barWidth: 3,
+                                dotData: const FlDotData(show: false),
+                                belowBarData: BarAreaData(
+                                  show: true,
+                                  color: Colors.orange.withOpacity(0.3),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                        borderData: FlBorderData(show: false),
-                        lineBarsData: [
-                          LineChartBarData(
-                            spots: spots,
-                            isCurved: true,
-                            color: Colors.orange.shade700,
-                            barWidth: 3,
-                            dotData: const FlDotData(show: false),
-                            belowBarData: BarAreaData(
-                              show: true,
-                              color: Colors.orange.withOpacity(0.3),
-                            ),
-                          ),
-                        ],
-                      ),
+                      ],
                     ),
             ),
           ],
@@ -566,12 +735,13 @@ class _SuhuContentState extends State<SuhuContent> {
       );
     }).toList();
 
-    double minY = 0, maxY = 50; // Default
-    if (_suhuRealtimeDataPoints.isNotEmpty) {
+    double minY = 0, maxY = 50;
+    if (_suhuRealtimeDataPoints.isNotEmpty &&
+        _minXVisible != null &&
+        _maxXVisible != null) {
       final visiblePoints = _suhuRealtimeDataPoints.where((p) {
         final time = p.timestamp.millisecondsSinceEpoch.toDouble();
-        return time >= (_minXVisible ?? 0) &&
-            time <= (_maxXVisible ?? double.infinity);
+        return time >= _minXVisible! && time <= _maxXVisible!;
       });
 
       if (visiblePoints.isNotEmpty) {
@@ -600,23 +770,40 @@ class _SuhuContentState extends State<SuhuContent> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
-                  'Grafik Suhu Real-time',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                ),
-                if (!_isAtLiveEdge)
-                  TextButton(
-                    onPressed: _scrollToLive,
-                    child: const Text('Go to Live'),
+                const Flexible(
+                  child: Text(
+                    'Grafik Suhu 24 Jam Terakhir',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                   ),
+                ),
+                Row(
+                  children: [
+                    if (!_isAtLiveEdge)
+                      TextButton(
+                        onPressed: _scrollToLive,
+                        child: const Text('Go to Live'),
+                      ),
+                    IconButton(
+                      icon: const Icon(Icons.zoom_in),
+                      onPressed: _zoomOut,
+                      tooltip: 'Zoom In',
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.zoom_out),
+                      onPressed: _zoomIn,
+                      tooltip: 'Zoom Out',
+                    ),
+                  ],
+                ),
               ],
             ),
             const SizedBox(height: 24),
             AspectRatio(
               aspectRatio: 1.7,
               child: _suhuRealtimeDataPoints.isEmpty
-                  ? const Center(child: Text('Menunggu data real-time...'))
+                  ? const Center(child: Text('Menunggu data...'))
                   : LineChart(
+                      // HAPUS GestureDetector yang sebelumnya membungkus widget ini
                       LineChartData(
                         minX: _minXVisible,
                         maxX: _maxXVisible,
@@ -624,90 +811,18 @@ class _SuhuContentState extends State<SuhuContent> {
                         maxY: maxY,
                         clipData: const FlClipData.all(),
                         lineTouchData: LineTouchData(
-                          touchCallback:
-                              (
-                                FlTouchEvent event,
-                                LineTouchResponse? response,
-                              ) {
-                                if (!mounted) return;
-
-                                if (event is FlPanStartEvent) {
-                                  setState(() {
-                                    _isAtLiveEdge = false;
-                                    _lastPanPosition = event
-                                        .localPosition; // Store start position
-                                  });
-                                } else if (event is FlPanUpdateEvent) {
-                                  if (_minXVisible == null ||
-                                      _maxXVisible == null ||
-                                      _lastPanPosition == null)
-                                    return;
-
-                                  final double dx =
-                                      event.localPosition.dx -
-                                      _lastPanPosition!.dx;
-
-                                  final chartWidth = context.size?.width ?? 1;
-                                  final dataPerPixel =
-                                      (_maxXVisible! - _minXVisible!) /
-                                      chartWidth;
-                                  final dataDx = dx * dataPerPixel;
-
-                                  setState(() {
-                                    final firstDataX = _suhuRealtimeDataPoints
-                                        .first
-                                        .timestamp
-                                        .millisecondsSinceEpoch
-                                        .toDouble();
-                                    final lastDataX = _suhuRealtimeDataPoints
-                                        .last
-                                        .timestamp
-                                        .millisecondsSinceEpoch
-                                        .toDouble();
-
-                                    double newMinX = _minXVisible! - dataDx;
-                                    double newMaxX = _maxXVisible! - dataDx;
-
-                                    if (newMinX < firstDataX) {
-                                      newMinX = firstDataX;
-                                      newMaxX =
-                                          newMinX +
-                                          _visibleDuration.inMilliseconds;
-                                    }
-                                    if (newMaxX > lastDataX) {
-                                      newMaxX = lastDataX;
-                                      newMinX =
-                                          newMaxX -
-                                          _visibleDuration.inMilliseconds;
-                                      _isAtLiveEdge = true;
-                                    }
-
-                                    _minXVisible = newMinX;
-                                    _maxXVisible = newMaxX;
-                                    _lastPanPosition = event
-                                        .localPosition; // Update last position
-                                  });
-                                } else if (event is FlPanEndEvent ||
-                                    event is FlLongPressEnd) {
-                                  _lastPanPosition = null; // Reset on end
-                                }
-                              },
+                          enabled: true,
                           handleBuiltInTouches: true,
+                          touchCallback: (event, response) {
+                            _handleTouchEvent(event);
+                          },
                           touchTooltipData: LineTouchTooltipData(
                             getTooltipColor: (touchedSpot) => Colors.black87,
                             getTooltipItems: (touchedSpots) {
                               return touchedSpots.map((spot) {
-                                final dataPoint = _suhuRealtimeDataPoints
-                                    .firstWhere(
-                                      (p) =>
-                                          p.timestamp.millisecondsSinceEpoch
-                                              .toDouble() ==
-                                          spot.x,
-                                      orElse: () =>
-                                          _suhuRealtimeDataPoints.first,
-                                    );
+                                final dataPoint = _findClosestDataPoint(spot.x);
                                 return LineTooltipItem(
-                                  '${DateFormat('HH:mm:ss').format(dataPoint.timestamp)}\n',
+                                  '${DateFormat('d MMM, HH:mm:ss').format(dataPoint.timestamp)}\n',
                                   const TextStyle(
                                     color: Colors.white,
                                     fontWeight: FontWeight.bold,
@@ -760,6 +875,10 @@ class _SuhuContentState extends State<SuhuContent> {
                             sideTitles: SideTitles(
                               showTitles: true,
                               reservedSize: 22,
+                              interval:
+                                  (_maxXVisible != null && _minXVisible != null)
+                                  ? ((_maxXVisible! - _minXVisible!) / 5)
+                                  : null,
                               getTitlesWidget: (value, meta) {
                                 return SideTitleWidget(
                                   axisSide: meta.axisSide,
@@ -785,8 +904,10 @@ class _SuhuContentState extends State<SuhuContent> {
                           LineChartBarData(
                             spots: spots,
                             isCurved: true,
+                            curveSmoothness: 0.1,
                             color: Colors.orange.shade700,
-                            barWidth: 3,
+                            barWidth: 2,
+                            isStrokeCapRound: true,
                             dotData: const FlDotData(show: false),
                             belowBarData: BarAreaData(
                               show: true,

@@ -1,12 +1,12 @@
 // lib/services/auth_service.dart
 import 'dart:convert';
-import 'dart:io' as io;
-import 'dart:typed_data';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'dart:io' as io; // Memberi alias untuk File dari dart:io
+import 'dart:typed_data'; // Untuk Uint8List
+import 'package:flutter/foundation.dart' show kIsWeb; // Untuk mengecek platform
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:http_parser/http_parser.dart';
-import '../utils/constants.dart';
+import 'package:http_parser/http_parser.dart'; // Untuk MediaType
+import '../utils/constants.dart'; // Pastikan AppConstants.baseUrl ada di sini
 
 // Kunci untuk SharedPreferences
 const String _tokenKey = 'auth_token';
@@ -16,26 +16,8 @@ const String _userPhotoUrlKey = 'user_photo_url';
 const String _rememberMeExpiryKey = 'remember_me_expiry';
 
 class AuthService {
-  Future<void> _getCsrfCookie() async {
-    // Hanya jalankan ini jika platformnya adalah web, karena hanya relevan untuk autentikasi SPA
-    if (kIsWeb) {
-      try {
-        // Ganti dengan URL backend Anda yang sesungguhnya jika berbeda
-        final url = Uri.parse(
-          '${AppConstants.baseUrl.replaceAll('/api', '')}/sanctum/csrf-cookie',
-        );
-        print('DEBUG: Requesting CSRF cookie from $url');
-        await http.get(url);
-        print('DEBUG: CSRF cookie request sent successfully.');
-      } catch (e) {
-        print('Error getting CSRF cookie: $e');
-        throw Exception(
-          'Tidak dapat terhubung ke server. Periksa koneksi Anda.',
-        );
-      }
-    }
-  }
-
+  // Method internal untuk menyimpan data user dan token
+  // Sekarang juga menangani logika "Remember Me"
   Future<void> _saveUserData(
     Map<String, dynamic> userData,
     bool rememberMe,
@@ -55,6 +37,7 @@ class AuthService {
     }
 
     if (rememberMe) {
+      // Simpan timestamp kedaluwarsa "Remember Me" (1 hari dari sekarang)
       final expiryTime = DateTime.now()
           .add(const Duration(days: 1))
           .millisecondsSinceEpoch;
@@ -74,9 +57,6 @@ class AuthService {
     String password,
     String passwordConfirmation,
   ) async {
-    // Panggil CSRF cookie sebelum register
-    await _getCsrfCookie();
-
     final response = await http.post(
       Uri.parse('${AppConstants.baseUrl}/register'),
       headers: <String, String>{
@@ -90,7 +70,10 @@ class AuthService {
         'password_confirmation': passwordConfirmation,
       }),
     );
-    return jsonDecode(response.body);
+
+    final data = jsonDecode(response.body);
+    if (response.statusCode == 201 && data.containsKey('access_token')) {}
+    return data;
   }
 
   Future<Map<String, dynamic>> login(
@@ -98,9 +81,6 @@ class AuthService {
     String password,
     bool rememberMe,
   ) async {
-    // Panggil CSRF cookie sebelum login
-    await _getCsrfCookie();
-
     final response = await http.post(
       Uri.parse('${AppConstants.baseUrl}/login'),
       headers: <String, String>{
@@ -112,17 +92,9 @@ class AuthService {
         'password': password,
       }),
     );
-
-    print('DEBUG: Login API Response Status: ${response.statusCode}');
-    print('DEBUG: Login API Response Body: ${response.body}');
-
-    if (response.statusCode >= 400) {
-      // Jika status code adalah error (seperti 419, 422, 500), kembalikan body error
-      return jsonDecode(response.body);
-    }
-
     final data = jsonDecode(response.body);
-    if (data.containsKey('access_token')) {
+    if ((response.statusCode == 200 || response.statusCode == 201) &&
+        data.containsKey('access_token')) {
       await _saveUserData(data, rememberMe);
     }
     return data;
@@ -134,7 +106,9 @@ class AuthService {
       'name': prefs.getString(_userNameKey),
       'email': prefs.getString(_userEmailKey),
       'photo_url': prefs.getString(_userPhotoUrlKey),
-      'token': prefs.getString(_tokenKey),
+      'token': prefs.getString(
+        _tokenKey,
+      ), // Menggunakan _tokenKey yang sudah didefinisikan
     };
   }
 
@@ -153,13 +127,17 @@ class AuthService {
         );
       } catch (e) {
         print("Error during API logout call: $e");
+        // Tetap lanjutkan proses logout di sisi klien meskipun API call gagal
       }
     }
+    // Hapus semua data sesi yang relevan
     await prefs.remove(_tokenKey);
     await prefs.remove(_userNameKey);
     await prefs.remove(_userEmailKey);
     await prefs.remove(_userPhotoUrlKey);
-    await prefs.remove(_rememberMeExpiryKey);
+    await prefs.remove(
+      _rememberMeExpiryKey,
+    ); // Penting untuk menghapus expiry saat logout
     print('User logged out, all session data cleared.');
   }
 
@@ -168,28 +146,44 @@ class AuthService {
     return prefs.getString(_tokenKey);
   }
 
+  // Method baru untuk mengecek status auto login berdasarkan "Remember Me"
   Future<bool> checkAutoLoginStatus() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     final String? token = prefs.getString(_tokenKey);
     final int? expiryTimestamp = prefs.getInt(_rememberMeExpiryKey);
 
     if (token == null || token.isEmpty) {
-      await _clearSessionDataOnExpiryOrInvalid();
+      print('Auto Login Check: No token found.');
+      await _clearSessionDataOnExpiryOrInvalid(); // Pastikan semua bersih jika token tidak ada
       return false;
     }
 
     if (expiryTimestamp != null) {
+      // Hanya periksa expiry jika "Remember Me" pernah aktif
       final DateTime expiryDate = DateTime.fromMillisecondsSinceEpoch(
         expiryTimestamp,
       );
       if (expiryDate.isBefore(DateTime.now())) {
+        print(
+          'Auto Login Check: remember_me_expiry is in the past. Clearing session.',
+        );
         await _clearSessionDataOnExpiryOrInvalid();
         return false;
       }
+      // "Remember Me" aktif dan belum kedaluwarsa
+      print(
+        'Auto Login Check: Token found and remember_me_expiry is valid. User can auto-login.',
+      );
       return true;
     } else {
-      // Perilaku baru: jika tidak ada expiry, anggap sebagai sesi biasa (tetap login saat refresh)
-      return true;
+      // Token ada, tapi "Remember Me" tidak aktif.
+      // Untuk perilaku "tetap login selama refresh", kita return true di sini.
+      // Server akan memvalidasi token pada request API berikutnya.
+      // Jika token ini dimaksudkan untuk sesi yang sangat singkat, logika lain mungkin diperlukan.
+      print(
+        'Auto Login Check: Token found, but no remember_me_expiry (Remember Me was not checked). Treating as active session for now.',
+      );
+      return true; // <--- PERUBAHAN DI SINI
     }
   }
 
@@ -202,6 +196,15 @@ class AuthService {
     await prefs.remove(_userPhotoUrlKey);
     await prefs.remove(_rememberMeExpiryKey);
     print('Session data cleared due to expiry or invalid state.');
+  }
+
+  // Fungsi isLoggedIn() bisa dipertimbangkan untuk diganti atau disesuaikan
+  // karena checkAutoLoginStatus() lebih spesifik untuk alur startup.
+  Future<bool> isLoggedIn() async {
+    // Untuk pengecekan umum apakah ada token (tanpa memperdulikan remember me expiry untuk saat ini)
+    // Atau bisa juga memanggil checkAutoLoginStatus
+    // return await getToken() != null; // Versi sederhana sebelumnya
+    return await checkAutoLoginStatus(); // Menggunakan logika yang sama dengan auto login
   }
 
   Future<Map<String, dynamic>> updateProfile({
@@ -240,6 +243,7 @@ class AuthService {
           'profile_photo',
           profileImageBytes,
           filename: profileImageFileName,
+          // contentType: MediaType('image', 'jpeg'), // Opsional, bisa diset jika tahu pasti
         ),
       );
     } else if (!kIsWeb && profileImage_io != null) {
@@ -298,13 +302,17 @@ class AuthService {
     required String newPasswordConfirmation,
   }) async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
-    final String? token = prefs.getString(_tokenKey);
+    final String? token = prefs.getString(
+      _tokenKey,
+    ); // Gunakan konstanta _tokenKey
     if (token == null) {
       return {'error': 'Not authenticated'};
     }
 
     final response = await http.post(
-      Uri.parse('${AppConstants.baseUrl}/user/change-password'),
+      Uri.parse(
+        '${AppConstants.baseUrl}/user/change-password',
+      ), // Endpoint baru
       headers: <String, String>{
         'Content-Type': 'application/json; charset=UTF-8',
         'Accept': 'application/json',
@@ -322,6 +330,8 @@ class AuthService {
     );
     print('AuthService changePassword - Response Body: ${response.body}');
 
+    // Tidak perlu decode jika hanya pesan sukses/error, tapi jika ada data user baru, decode
+    // Jika backend hanya mengembalikan message, tidak perlu jsonDecode jika tidak ingin error saat body kosong atau bukan JSON
     try {
       final data = jsonDecode(response.body);
       return data; // Kembalikan data JSON jika ada
@@ -343,7 +353,7 @@ class AuthService {
 
   Future<Map<String, dynamic>> sendPasswordResetLink(String email) async {
     final response = await http.post(
-      Uri.parse('${AppConstants.baseUrl}/forgot-password'),
+      Uri.parse('${AppConstants.baseUrl}/forgot-password'), // Endpoint baru
       headers: <String, String>{
         'Content-Type': 'application/json; charset=UTF-8',
         'Accept': 'application/json',
@@ -360,13 +370,18 @@ class AuthService {
 
     try {
       final data = jsonDecode(response.body);
+      // Tambahkan status code ke data agar bisa dicek di UI jika perlu
+      // Meskipun status code sudah ada di response.statusCode
+      // Ini berguna jika jsonDecode berhasil tapi status code bukan 2xx
       if (data is Map<String, dynamic>) {
+        // Pastikan data adalah Map
         data['statusCode'] = response.statusCode;
       }
       return data;
     } catch (e) {
       // Jika body bukan JSON (misalnya hanya string pesan atau error HTML)
       if (response.statusCode == 200 || response.statusCode == 201) {
+        // Sukses tapi body bukan JSON? Jarang terjadi
         return {
           'message': response.body.isNotEmpty
               ? response.body
@@ -390,7 +405,7 @@ class AuthService {
     required String passwordConfirmation,
   }) async {
     final response = await http.post(
-      Uri.parse('${AppConstants.baseUrl}/reset-password'),
+      Uri.parse('${AppConstants.baseUrl}/reset-password'), // Endpoint baru
       headers: <String, String>{
         'Content-Type': 'application/json; charset=UTF-8',
         'Accept': 'application/json',

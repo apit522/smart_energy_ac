@@ -131,11 +131,9 @@ class _DashboardLayoutScreenState extends State<DashboardLayoutScreen> {
                     _navigateTo(page, title, isMobile: true),
               ),
             ),
-            body: SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: _getContentWidget(),
-              ),
+            body: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: _getContentWidget(),
             ),
           );
         } else {
@@ -161,16 +159,15 @@ class _DashboardLayoutScreenState extends State<DashboardLayoutScreen> {
                         userEmail: _userEmail,
                         profilePhotoUrl: _userPhotoUrl,
                         onProfileTap: _onProfileTapped,
-                        // Tidak ada leading di sini untuk versi desktop
                       ),
-                      // Padding(
-                      //   padding: const EdgeInsets.symmetric(horizontal: 40.0, vertical: 36.0),
-                      //   child: WelcomeBanner(userName: _userName),
-                      // ),
                       const SizedBox(height: 24),
                       Expanded(
                         child: Padding(
-                          padding: const EdgeInsets.all(20.0),
+                          padding: const EdgeInsets.only(
+                            left: 20.0,
+                            right: 20.0,
+                            bottom: 20.0,
+                          ),
                           child: _getContentWidget(),
                         ),
                       ),

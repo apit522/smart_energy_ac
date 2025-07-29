@@ -4,8 +4,5 @@ class PredictionPoint {
   final int hour;
   final double predictedKwh;
 
-  PredictionPoint({
-    required this.hour,
-    required this.predictedKwh, // Ganti nama properti
-  });
+  PredictionPoint({required this.hour, required this.predictedKwh});
 }

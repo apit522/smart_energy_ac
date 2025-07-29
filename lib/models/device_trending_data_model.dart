@@ -22,12 +22,24 @@ class DeviceTrendingData {
       return double.tryParse(value?.toString() ?? '0') ?? 0.0;
     }
 
+    // Helper untuk parsing integer yang aman dari string atau angka
+    int safeParseInt(dynamic value) {
+      return int.tryParse(value?.toString() ?? '0') ?? 0;
+    }
+
     return DeviceTrendingData(
-      deviceId: (json['device_id'] as num?)?.toInt() ?? 0,
+      // ✅ PERBAIKAN: Gunakan helper parsing yang aman
+      deviceId: safeParseInt(json['device_id']),
+
       last24hKwh: safeParseDouble(json['last_24h_kwh']),
       last7dKwh: safeParseDouble(json['last_7d_kwh']),
       last30dKwh: safeParseDouble(json['last_30d_kwh']),
-      currentEfficiency: safeParseDouble(json['current_efficiency']),
+
+      // Ini juga sudah diperbaiki sebelumnya untuk menangani null
+      currentEfficiency: json['current_efficiency'] != null
+          ? safeParseDouble(json['current_efficiency'])
+          : null,
+
       lastUpdated: DateTime.parse(json['last_updated']).toLocal(),
     );
   }

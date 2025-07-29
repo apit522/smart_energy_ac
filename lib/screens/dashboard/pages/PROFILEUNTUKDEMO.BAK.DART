@@ -320,7 +320,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                           crossAxisAlignment: CrossAxisAlignment.center,
                           children: <Widget>[
                             GestureDetector(
-                              onTap: _pickImage,
+                              onTap: null,
                               child: CircleAvatar(
                                 radius: 60,
                                 backgroundColor: Colors.grey[200],
@@ -335,7 +335,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                               ),
                             ),
                             TextButton(
-                              onPressed: _pickImage,
+                              onPressed: null,
                               child: const Text(
                                 'Change Profile Photo',
                                 style: TextStyle(color: AppColors.primaryColor),
@@ -379,6 +379,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                                     TextFormField(
                                       // Name
                                       controller: _nameController,
+                                      readOnly: true,
                                       decoration: InputDecoration(
                                         labelText: 'Name',
                                         border: OutlineInputBorder(
@@ -400,6 +401,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                                     const SizedBox(height: 20),
                                     TextFormField(
                                       controller: _emailController,
+
                                       decoration: InputDecoration(
                                         labelText: 'Email',
                                         border: OutlineInputBorder(

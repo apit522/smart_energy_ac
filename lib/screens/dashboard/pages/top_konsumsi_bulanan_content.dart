@@ -1,3 +1,4 @@
+// lib\screens\dashboard\pages\top_konsumsi_bulanan_content.dart
 import 'dart:math';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
@@ -33,6 +34,24 @@ class _TopKonsumsiBulananContentState extends State<TopKonsumsiBulananContent> {
   List<DeviceMonthlySummary> _monthlySummaries = [];
   double _yearlyAvgWatt = 0.0;
   double _yearlyPeakWatt = 0.0;
+  double _yearlyTotalKwh = 0.0;
+  double _yearlyAvgTemp = 0.0;
+
+  // --- DITAMBAHKAN: Daftar warna untuk grafik donat ---
+  final List<Color> _pieColors = [
+    Colors.blue.shade400,
+    Colors.green.shade400,
+    Colors.orange.shade400,
+    Colors.red.shade400,
+    Colors.purple.shade400,
+    Colors.amber.shade400,
+    Colors.cyan.shade400,
+    Colors.pink.shade300,
+    Colors.teal.shade400,
+    Colors.indigo.shade400,
+    Colors.lime.shade600,
+    Colors.brown.shade400,
+  ];
 
   @override
   void initState() {
@@ -47,7 +66,6 @@ class _TopKonsumsiBulananContentState extends State<TopKonsumsiBulananContent> {
   @override
   void didUpdateWidget(covariant TopKonsumsiBulananContent oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // Jika perangkat yang dipilih berubah dari parent, fetch data baru
     if (widget.selectedDevice != oldWidget.selectedDevice &&
         widget.selectedDevice != null) {
       _fetchMonthlyData();
@@ -63,8 +81,6 @@ class _TopKonsumsiBulananContentState extends State<TopKonsumsiBulananContent> {
         widget.selectedDevice!.id,
         year: _selectedYear,
       );
-
-      // Urutkan data dari totalKwh tertinggi ke terendah
       summaries.sort((a, b) => b.totalKwh.compareTo(a.totalKwh));
 
       setState(() {
@@ -89,69 +105,100 @@ class _TopKonsumsiBulananContentState extends State<TopKonsumsiBulananContent> {
     if (_monthlySummaries.isEmpty) {
       _yearlyAvgWatt = 0.0;
       _yearlyPeakWatt = 0.0;
+      _yearlyTotalKwh = 0.0;
+      _yearlyAvgTemp = 0.0;
       return;
     }
-    // Rata-rata dari semua rata-rata bulanan
+
+    _yearlyTotalKwh = _monthlySummaries
+        .map((s) => s.totalKwh)
+        .reduce((a, b) => a + b);
     _yearlyAvgWatt =
         _monthlySummaries.map((s) => s.avgWatt).reduce((a, b) => a + b) /
         _monthlySummaries.length;
-    // Nilai puncak tertinggi dari semua puncak bulanan
+    _yearlyAvgTemp =
+        _monthlySummaries.map((s) => s.avgTemperature).reduce((a, b) => a + b) /
+        _monthlySummaries.length;
     _yearlyPeakWatt = _monthlySummaries.map((s) => s.peakWatt).reduce(max);
   }
-
-  // --- WIDGET BUILDERS ---
 
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
         bool isMobile = constraints.maxWidth < 850;
-
-        return Column(
-          children: [
-            _buildFilterBar(),
-            const SizedBox(height: 24),
-            _isLoading
-                ? const Expanded(
-                    child: Center(child: CircularProgressIndicator()),
-                  )
-                : widget.selectedDevice == null
-                ? const Expanded(
-                    child: Center(
-                      child: Text(
-                        'Pilih perangkat terlebih dahulu.',
-                        style: TextStyle(fontSize: 16),
-                      ),
-                    ),
-                  )
-                : Expanded(
-                    child: SingleChildScrollView(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                        child: Column(
-                          children: [
-                            _buildSummaryCards(isMobile: isMobile),
-                            const SizedBox(height: 24),
-                            _buildMonthlyChartCard(),
-                            const SizedBox(height: 24),
-                          ],
+        return Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 1200),
+            child: Column(
+              children: [
+                _buildFilterBar(),
+                const SizedBox(height: 24),
+                _isLoading
+                    ? const Expanded(
+                        child: Center(child: CircularProgressIndicator()),
+                      )
+                    : widget.selectedDevice == null
+                    ? const Expanded(
+                        child: Center(
+                          child: Text(
+                            'Pilih perangkat terlebih dahulu.',
+                            style: TextStyle(fontSize: 16),
+                          ),
+                        ),
+                      )
+                    : Expanded(
+                        child: SingleChildScrollView(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16.0,
+                            ),
+                            child: _buildContentBody(isMobile),
+                          ),
                         ),
                       ),
-                    ),
-                  ),
-          ],
+              ],
+            ),
+          ),
         );
       },
     );
   }
 
+  // --- DIPERBARUI: Mengatur posisi widget baru di layout ---
+  Widget _buildContentBody(bool isMobile) {
+    if (isMobile) {
+      return Column(
+        children: [
+          _buildSummaryCards(isMobile: true),
+          const SizedBox(height: 24),
+          _buildMonthlyConsumptionList(),
+          const SizedBox(height: 24),
+        ],
+      );
+    } else {
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(flex: 5, child: _buildMonthlyConsumptionList()),
+          const SizedBox(width: 24),
+          Expanded(
+            flex: 3,
+            child: Column(
+              children: [
+                _buildSummaryCards(isMobile: false),
+                const SizedBox(height: 24),
+              ],
+            ),
+          ),
+        ],
+      );
+    }
+  }
+
   Widget _buildFilterBar() {
-    // Membuat daftar tahun, contoh: dari 2022 hingga tahun ini
     final currentYear = DateTime.now().year;
-    final yearList = List.generate(
-      currentYear - 2021,
-      (index) => currentYear - index,
-    );
+    final yearList = List.generate(3, (index) => currentYear - index);
 
     return Card(
       elevation: 2,
@@ -162,7 +209,6 @@ class _TopKonsumsiBulananContentState extends State<TopKonsumsiBulananContent> {
         padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
         child: Row(
           children: [
-            // Dropdown Perangkat
             Expanded(
               child: DropdownButtonHideUnderline(
                 child: DropdownButton<Device>(
@@ -182,7 +228,6 @@ class _TopKonsumsiBulananContentState extends State<TopKonsumsiBulananContent> {
               ),
             ),
             const SizedBox(width: 16),
-            // Dropdown Tahun
             DropdownButtonHideUnderline(
               child: DropdownButton<int>(
                 value: _selectedYear,
@@ -194,9 +239,7 @@ class _TopKonsumsiBulananContentState extends State<TopKonsumsiBulananContent> {
                     .toList(),
                 onChanged: (year) {
                   if (year != null && year != _selectedYear) {
-                    setState(() {
-                      _selectedYear = year;
-                    });
+                    setState(() => _selectedYear = year);
                     _fetchMonthlyData();
                   }
                 },
@@ -209,11 +252,10 @@ class _TopKonsumsiBulananContentState extends State<TopKonsumsiBulananContent> {
   }
 
   Widget _buildSummaryCards({required bool isMobile}) {
-    int crossAxisCount = isMobile ? 2 : 2; // Hanya 2 kartu
-    double childAspectRatio = isMobile ? 2.2 : 4;
+    double childAspectRatio = isMobile ? 1.8 : 2.0;
 
     return GridView.count(
-      crossAxisCount: crossAxisCount,
+      crossAxisCount: 2,
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       mainAxisSpacing: 16,
@@ -221,14 +263,24 @@ class _TopKonsumsiBulananContentState extends State<TopKonsumsiBulananContent> {
       childAspectRatio: childAspectRatio,
       children: [
         _buildSummaryCard(
-          'Rata-rata Watt',
-          '${_yearlyAvgWatt.toStringAsFixed(1)} W',
+          'Total Konsumsi',
+          '${_yearlyTotalKwh.toStringAsFixed(2)} kWh',
+          Icons.electric_bolt_outlined,
+        ),
+        _buildSummaryCard(
+          'Rata-rata Watt Hour',
+          '${_yearlyAvgWatt.toStringAsFixed(1)} Wh',
           Icons.speed_outlined,
         ),
         _buildSummaryCard(
-          'Puncak Watt',
+          'Puncak Daya',
           '${_yearlyPeakWatt.toStringAsFixed(1)} W',
-          Icons.bolt,
+          Icons.flash_on_outlined,
+        ),
+        _buildSummaryCard(
+          'Rata-rata Suhu',
+          '${_yearlyAvgTemp.toStringAsFixed(1)} °C',
+          Icons.thermostat_outlined,
         ),
       ],
     );
@@ -273,7 +325,22 @@ class _TopKonsumsiBulananContentState extends State<TopKonsumsiBulananContent> {
     );
   }
 
-  Widget _buildMonthlyChartCard() {
+  // --- DIPERBARUI: Mengganti BarChart menjadi daftar kustom ---
+  Widget _buildMonthlyConsumptionList() {
+    if (_monthlySummaries.isEmpty) {
+      return Card(
+        elevation: 2,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        color: Colors.white,
+        child: Container(
+          height: 400,
+          alignment: Alignment.center,
+          child: const Text('Tidak ada data untuk ditampilkan.'),
+        ),
+      );
+    }
+    final double maxKwh = _monthlySummaries.map((s) => s.totalKwh).reduce(max);
+
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -284,106 +351,53 @@ class _TopKonsumsiBulananContentState extends State<TopKonsumsiBulananContent> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'Top Konsumsi Bulanan (kWh)',
+              'Top Konsumsi Bulanan',
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
-            const SizedBox(height: 24),
-            AspectRatio(
-              aspectRatio: 1.7,
-              child: _monthlySummaries.isEmpty
-                  ? const Center(
-                      child: Text('Tidak ada data untuk ditampilkan.'),
-                    )
-                  : BarChart(
-                      BarChartData(
-                        alignment: BarChartAlignment.spaceAround,
-                        barTouchData: BarTouchData(
-                          touchTooltipData: BarTouchTooltipData(
-                            getTooltipColor: (touchedSpot) => Colors.black87,
-                            getTooltipItem: (group, groupIndex, rod, rodIndex) {
-                              final summary = _monthlySummaries[groupIndex];
-                              return BarTooltipItem(
-                                '${_getMonthName(summary.summaryMonth)}\n',
-                                const TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                                children: <TextSpan>[
-                                  TextSpan(
-                                    text: '${rod.toY.toStringAsFixed(2)} kWh',
-                                    style: const TextStyle(
-                                      color: Colors.yellow,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                ],
-                              );
-                            },
-                          ),
-                        ),
-                        titlesData: FlTitlesData(
-                          topTitles: const AxisTitles(
-                            sideTitles: SideTitles(showTitles: false),
-                          ),
-                          rightTitles: const AxisTitles(
-                            sideTitles: SideTitles(showTitles: false),
-                          ),
-                          leftTitles: AxisTitles(
-                            sideTitles: SideTitles(
-                              showTitles: true,
-                              reservedSize: 40,
-                              getTitlesWidget: (value, meta) => Text(
-                                meta.formattedValue,
-                                style: const TextStyle(fontSize: 10),
-                              ),
-                            ),
-                          ),
-                          bottomTitles: AxisTitles(
-                            sideTitles: SideTitles(
-                              showTitles: true,
-                              reservedSize: 30,
-                              getTitlesWidget: (value, meta) {
-                                // value adalah indeks 0, 1, 2, ...
-                                final index = value.toInt();
-                                if (index < _monthlySummaries.length) {
-                                  final month =
-                                      _monthlySummaries[index].summaryMonth;
-                                  return SideTitleWidget(
-                                    axisSide: meta.axisSide,
-                                    space: 4,
-                                    child: Text(
-                                      _getMonthName(month, short: true),
-                                      style: const TextStyle(fontSize: 10),
-                                    ),
-                                  );
-                                }
-                                return const Text('');
-                              },
-                            ),
-                          ),
-                        ),
-                        barGroups: _monthlySummaries.asMap().entries.map((
-                          entry,
-                        ) {
-                          final index = entry.key; // 0, 1, 2, ...
-                          final summary = entry.value;
-                          return BarChartGroupData(
-                            x: index, // Gunakan indeks sebagai nilai x
-                            barRods: [
-                              BarChartRodData(
-                                toY: summary.totalKwh,
-                                color: AppColors.primaryColor,
-                                width: 20,
-                                borderRadius: const BorderRadius.vertical(
-                                  top: Radius.circular(6),
-                                ),
-                              ),
-                            ],
-                          );
-                        }).toList(),
+            const SizedBox(height: 20),
+            ..._monthlySummaries.asMap().entries.map((entry) {
+              final index = entry.key;
+              final summary = entry.value;
+              final barWidthFactor = (maxKwh > 0)
+                  ? summary.totalKwh / maxKwh
+                  : 0;
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8.0),
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 70,
+                      child: Text(
+                        _getMonthName(summary.summaryMonth),
+                        style: const TextStyle(fontSize: 14),
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
-            ),
+                    Expanded(
+                      child: FractionallySizedBox(
+                        alignment: Alignment.centerLeft,
+                        widthFactor: barWidthFactor.toDouble(),
+                        child: Container(
+                          height: 20,
+                          decoration: BoxDecoration(
+                            color: _pieColors[index % _pieColors.length],
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Text(
+                      '${summary.totalKwh.toStringAsFixed(1)} kWh',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
           ],
         ),
       ),
@@ -392,7 +406,6 @@ class _TopKonsumsiBulananContentState extends State<TopKonsumsiBulananContent> {
 
   String _getMonthName(int month, {bool short = false}) {
     final format = short ? 'MMM' : 'MMMM';
-    // Buat tanggal dummy untuk mendapatkan nama bulan dari int
     return DateFormat(format, 'id_ID').format(DateTime(2022, month, 1));
   }
 }

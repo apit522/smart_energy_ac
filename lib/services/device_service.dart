@@ -161,21 +161,37 @@ class DeviceService {
   }
 
   Future<DeviceData?> getLatestData(int deviceId) async {
-    final token = await _authService.getToken();
+    final token = await _getRequiredToken();
     final url = Uri.parse(
       '${AppConstants.baseUrl}/devices/$deviceId/latest-data',
     );
-    final response = await http.get(
-      url,
-      headers: {'Authorization': 'Bearer $token'},
-    );
 
-    if (response.statusCode == 200 && response.body.isNotEmpty) {
-      return DeviceData.fromJson(json.decode(response.body));
-    } else if (response.body.isEmpty) {
-      return null; // Tidak ada data
-    } else {
-      throw Exception('Gagal memuat data terbaru');
+    try {
+      final response = await http.get(
+        url,
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Accept': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200 && response.body.isNotEmpty) {
+        // 1. Decode seluruh body
+        final Map<String, dynamic> decodedBody = json.decode(response.body);
+
+        // 2. Ambil objek yang ada di dalam kunci 'latest_data'
+        final dynamic latestDataJson = decodedBody['latest_data'];
+
+        // 3. Pastikan objek tersebut tidak null sebelum di-parse
+        if (latestDataJson != null && latestDataJson is Map<String, dynamic>) {
+          return DeviceData.fromJson(latestDataJson);
+        }
+      }
+      // Jika status code bukan 200 atau 'latest_data' null, kembalikan null
+      return null;
+    } catch (e) {
+      print('Error di getLatestData service: $e');
+      return null;
     }
   }
 

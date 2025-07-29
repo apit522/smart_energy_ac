@@ -1,4 +1,3 @@
-// lib\screens\dashboard\pages\DeviceScreen.dart
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:timeago/timeago.dart' as timeago;
@@ -488,47 +487,7 @@ class _DeviceScreenState extends State<DeviceScreen> {
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
-                  onPressed: () {
-                    if (formKey.currentState!.validate()) {
-                      final btuValue = btuController.text.isNotEmpty
-                          ? int.tryParse(btuController.text)
-                          : null;
-
-                      Future.value(
-                            isEditing
-                                ? _deviceService.updateDevice(
-                                    id: device.id,
-                                    name: nameController.text,
-                                    location: locationController.text,
-                                    uniqueId: uniqueIdController.text,
-                                    btu: btuValue,
-                                    dayaVa: selectedDayaVa!,
-                                  )
-                                : _deviceService.addDevice(
-                                    name: nameController.text,
-                                    location: locationController.text,
-                                    uniqueId: uniqueIdController.text,
-                                    btu: btuValue,
-                                    dayaVa: selectedDayaVa!,
-                                  ),
-                          )
-                          .then((_) {
-                            _refreshDevices();
-                          })
-                          .catchError((e) {
-                            if (context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text('Error: ${e.toString()}'),
-                                  backgroundColor: Colors.red,
-                                ),
-                              );
-                            }
-                          });
-
-                      Navigator.of(context).pop();
-                    }
-                  },
+                  onPressed: null,
                 ),
               ],
             );
@@ -585,22 +544,7 @@ class _DeviceScreenState extends State<DeviceScreen> {
                 borderRadius: BorderRadius.circular(12),
               ),
             ),
-            onPressed: () async {
-              try {
-                await _deviceService.deleteDevice(device.id);
-                if (context.mounted) Navigator.of(context).pop();
-                _refreshDevices();
-              } catch (e) {
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Error: ${e.toString()}'),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
-                }
-              }
-            },
+            onPressed: null,
           ),
         ],
       ),

@@ -12,10 +12,12 @@ class RegisterScreen extends StatefulWidget {
 
 class _RegisterScreenState extends State<RegisterScreen> {
   final _formKey = GlobalKey<FormState>();
-  final TextEditingController _nameController = TextEditingController(); // Di desain 'Username'
+  final TextEditingController _nameController =
+      TextEditingController(); // Di desain 'Username'
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
-  final TextEditingController _passwordConfirmationController = TextEditingController();
+  final TextEditingController _passwordConfirmationController =
+      TextEditingController();
   final AuthService _authService = AuthService();
   bool _isLoading = false;
   bool _obscurePassword = true;
@@ -25,11 +27,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
     if (_formKey.currentState!.validate()) {
       if (_passwordController.text != _passwordConfirmationController.text) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Password dan konfirmasi password tidak cocok!')),
+          const SnackBar(
+            content: Text('Password dan konfirmasi password tidak cocok!'),
+          ),
         );
         return;
       }
-      setState(() { _isLoading = true; });
+      setState(() {
+        _isLoading = true;
+      });
       try {
         final result = await _authService.register(
           _nameController.text,
@@ -38,11 +44,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
           _passwordConfirmationController.text,
         );
         if (!mounted) return;
-        setState(() { _isLoading = false; });
+        setState(() {
+          _isLoading = false;
+        });
 
         if (result.containsKey('access_token')) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Registrasi Berhasil! Silakan Login.')),
+            const SnackBar(
+              content: Text('Registrasi Berhasil! Silakan Login.'),
+            ),
           );
           Navigator.of(context).pop(); // Kembali ke halaman login
         } else if (result.containsKey('errors')) {
@@ -51,9 +61,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
           errors.forEach((key, value) {
             errorMessage += '${value[0]}\n';
           });
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(errorMessage.trim())),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(errorMessage.trim())));
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text(result['message'] ?? 'Registrasi Gagal!')),
@@ -61,14 +71,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
         }
       } catch (e) {
         if (!mounted) return;
-        setState(() { _isLoading = false; });
+        setState(() {
+          _isLoading = false;
+        });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Terjadi kesalahan: ${e.toString()}')),
         );
       }
     }
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -105,13 +116,31 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 'assets/images/side_image.png', // Ganti dengan path gambar Anda
                                 height: 200, // Sesuaikan
                                 errorBuilder: (context, error, stackTrace) =>
-                                const Icon(Icons.image, size: 100, color: Colors.white54),
+                                    const Icon(
+                                      Icons.image,
+                                      size: 100,
+                                      color: Colors.white54,
+                                    ),
                               ),
                             ),
                             const SizedBox(height: 30),
-                            const Text('Smart AC Control',textAlign: TextAlign.left, style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.white)),
+                            const Text(
+                              'Smart Energy AC',
+                              textAlign: TextAlign.left,
+                              style: TextStyle(
+                                fontSize: 32,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
                             const SizedBox(height: 10),
-                            const Text('Choice for Efficient Cooling', style: TextStyle(fontSize: 24, color: Colors.white70)),
+                            const Text(
+                              'Choice for Efficient Cooling',
+                              style: TextStyle(
+                                fontSize: 24,
+                                color: Colors.white70,
+                              ),
+                            ),
                           ],
                         ),
                       ),
@@ -123,7 +152,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   Expanded(
                     flex: 1,
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 40),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 40,
+                      ),
                       child: Form(
                         key: _formKey,
                         child: Column(
@@ -134,13 +166,21 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               'assets/images/logo.png',
                               height: 80,
                               errorBuilder: (context, error, stackTrace) =>
-                              const Icon(Icons.lightbulb_outline, size: 60, color: Color(0xFF178189)),
+                                  const Icon(
+                                    Icons.lightbulb_outline,
+                                    size: 60,
+                                    color: Color(0xFF178189),
+                                  ),
                             ),
                             const SizedBox(height: 20),
                             const Text(
                               'Register Here',
                               textAlign: TextAlign.center,
-                              style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Color(0xFF073A3E)),
+                              style: TextStyle(
+                                fontSize: 28,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF073A3E),
+                              ),
                             ),
                             const SizedBox(height: 30),
                             _buildTextField(
@@ -148,7 +188,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               hintText: 'Enter your Name',
                               icon: Icons.person_outline,
                               validator: (value) {
-                                if (value == null || value.isEmpty) return 'Name tidak boleh kosong';
+                                if (value == null || value.isEmpty)
+                                  return 'Name tidak boleh kosong';
                                 return null;
                               },
                             ),
@@ -158,8 +199,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               hintText: 'Enter your Email',
                               icon: Icons.email_outlined,
                               validator: (value) {
-                                if (value == null || value.isEmpty) return 'Email tidak boleh kosong';
-                                if (!value.contains('@')) return 'Masukkan email yang valid';
+                                if (value == null || value.isEmpty)
+                                  return 'Email tidak boleh kosong';
+                                if (!value.contains('@'))
+                                  return 'Masukkan email yang valid';
                                 return null;
                               },
                             ),
@@ -171,7 +214,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               obscureText: _obscurePassword,
                               suffixIcon: IconButton(
                                 icon: Icon(
-                                  _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                                  _obscurePassword
+                                      ? Icons.visibility_off
+                                      : Icons.visibility,
                                   color: Colors.grey,
                                 ),
                                 onPressed: () {
@@ -181,8 +226,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 },
                               ),
                               validator: (value) {
-                                if (value == null || value.isEmpty) return 'Password tidak boleh kosong';
-                                if (value.length < 8) return 'Password minimal 8 karakter';
+                                if (value == null || value.isEmpty)
+                                  return 'Password tidak boleh kosong';
+                                if (value.length < 8)
+                                  return 'Password minimal 8 karakter';
                                 return null;
                               },
                             ),
@@ -194,39 +241,59 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               obscureText: _obscureConfirmPassword,
                               suffixIcon: IconButton(
                                 icon: Icon(
-                                  _obscureConfirmPassword ? Icons.visibility_off : Icons.visibility,
+                                  _obscureConfirmPassword
+                                      ? Icons.visibility_off
+                                      : Icons.visibility,
                                   color: Colors.grey,
                                 ),
                                 onPressed: () {
                                   setState(() {
-                                    _obscureConfirmPassword = !_obscureConfirmPassword;
+                                    _obscureConfirmPassword =
+                                        !_obscureConfirmPassword;
                                   });
                                 },
                               ),
                               validator: (value) {
-                                if (value == null || value.isEmpty) return 'Konfirmasi password tidak boleh kosong';
-                                if (value != _passwordController.text) return 'Konfirmasi password tidak cocok';
+                                if (value == null || value.isEmpty)
+                                  return 'Konfirmasi password tidak boleh kosong';
+                                if (value != _passwordController.text)
+                                  return 'Konfirmasi password tidak cocok';
                                 return null;
                               },
                             ),
                             const SizedBox(height: 30),
                             _isLoading
-                                ? const Center(child: CircularProgressIndicator())
+                                ? const Center(
+                                    child: CircularProgressIndicator(),
+                                  )
                                 : ElevatedButton(
-                              onPressed: _register,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFF178189),
-                                padding: const EdgeInsets.symmetric(vertical: 16),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                              ),
-                              child: const Text('Register', style: TextStyle(fontSize: 18, color: Colors.white)),
-                            ),
+                                    onPressed: _register,
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: const Color(0xFF178189),
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 16,
+                                      ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                    ),
+                                    child: const Text(
+                                      'Register',
+                                      style: TextStyle(
+                                        fontSize: 18,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  ),
                             const SizedBox(height: 20),
                             Center(
                               child: RichText(
                                 text: TextSpan(
                                   text: "Already have an account? ",
-                                  style: const TextStyle(color: Colors.black54, fontSize: 14),
+                                  style: const TextStyle(
+                                    color: Colors.black54,
+                                    fontSize: 14,
+                                  ),
                                   children: <TextSpan>[
                                     TextSpan(
                                       text: 'Sign in',
@@ -237,7 +304,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                       ),
                                       recognizer: TapGestureRecognizer()
                                         ..onTap = () {
-                                          Navigator.of(context).pop(); // Kembali ke login
+                                          Navigator.of(
+                                            context,
+                                          ).pop(); // Kembali ke login
                                         },
                                     ),
                                   ],
@@ -286,7 +355,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
           borderRadius: BorderRadius.circular(10),
           borderSide: const BorderSide(color: Color(0xFF178189), width: 2),
         ),
-        contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
+        contentPadding: const EdgeInsets.symmetric(
+          vertical: 16,
+          horizontal: 16,
+        ),
       ),
       validator: validator,
     );

@@ -1,4 +1,6 @@
+//lib\screens\dashboard\pages\actual_dashboard_content.dart
 import 'dart:async';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:fl_chart/fl_chart.dart';
@@ -6,6 +8,7 @@ import '../../../models/device_model.dart';
 import '../../../models/device_data_model.dart';
 import '../../../models/device_data_hourly_model.dart';
 import '../../../models/device_trending_data_model.dart';
+import '../../../models/device_daily_summary_model.dart';
 import '../../../services/auth_service.dart';
 import '../../../services/device_service.dart';
 import '../../../utils/app_colors.dart';
@@ -27,8 +30,8 @@ class _ActualDashboardContentState extends State<ActualDashboardContent> {
   // State untuk UI
   String _userName = 'User';
   bool _isLoading = true;
-  Timer? _realtimeTimer; // Untuk data real-time (tiap 30 detik)
-  Timer? _refreshTimer; // Untuk data tren & harian (tiap 5 menit)
+  Timer? _realtimeTimer;
+  Timer? _refreshTimer;
 
   // State untuk filter
   List<Device> _devices = [];
@@ -37,10 +40,12 @@ class _ActualDashboardContentState extends State<ActualDashboardContent> {
 
   // State untuk data
   DeviceData? _latestData;
-  List<FlSpot> _lineChartSpots = []; // Diubah untuk LineChart
+  List<FlSpot> _lineChartSpots = [];
   DeviceTrendingData? _trendingData;
   double _totalKwhToday = 0.0;
   double _totalCostToday = 0.0;
+  List<DeviceDailySummary> _weeklyTrendData =
+      []; // State untuk data tren 7 hari
 
   // StreamController untuk data realtime
   final StreamController<DeviceData?> _realtimeDataController =
@@ -54,6 +59,7 @@ class _ActualDashboardContentState extends State<ActualDashboardContent> {
     _refreshTimer = Timer.periodic(const Duration(minutes: 5), (timer) {
       if (_selectedDevice != null) {
         _fetchTrendingData(showLoading: false);
+        _fetchWeeklyTrendData(showLoading: false);
         if (_isToday(_selectedDate)) {
           _fetchHourlyData(showLoading: false);
         }
@@ -94,8 +100,9 @@ class _ActualDashboardContentState extends State<ActualDashboardContent> {
           await Future.wait([
             _fetchTrendingData(showLoading: false),
             _fetchHourlyData(showLoading: false),
+            _fetchWeeklyTrendData(showLoading: false),
           ]);
-          _startRealtimeUpdates(); // Memulai refresh otomatis
+          _startRealtimeUpdates();
         }
       }
     } catch (e) {
@@ -112,6 +119,7 @@ class _ActualDashboardContentState extends State<ActualDashboardContent> {
       await Future.wait([
         _fetchTrendingData(showLoading: false),
         _fetchHourlyData(showLoading: false),
+        _fetchWeeklyTrendData(showLoading: false),
       ]);
       _startRealtimeUpdates();
     } catch (e) {
@@ -128,7 +136,30 @@ class _ActualDashboardContentState extends State<ActualDashboardContent> {
       final data = await _deviceService.getTrendingData(_selectedDevice!.id);
       if (mounted) setState(() => _trendingData = data);
     } catch (e) {
-      print('Error fetching trending data: $e'); // Log untuk debug
+      // print('Error fetching trending data: $e');
+    } finally {
+      if (showLoading && mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  // Mengambil data untuk 7 hari terakhir
+  Future<void> _fetchWeeklyTrendData({bool showLoading = true}) async {
+    if (_selectedDevice == null) return;
+    if (showLoading) setState(() => _isLoading = true);
+    try {
+      final now = DateTime.now();
+      final data = await _deviceService.getDailySummary(
+        _selectedDevice!.id,
+        startDate: now.subtract(const Duration(days: 7)),
+        endDate: now,
+      );
+      if (mounted) {
+        setState(() {
+          _weeklyTrendData = data;
+        });
+      }
+    } catch (e) {
+      print('Error fetching weekly trend data: $e');
     } finally {
       if (showLoading && mounted) setState(() => _isLoading = false);
     }
@@ -152,9 +183,8 @@ class _ActualDashboardContentState extends State<ActualDashboardContent> {
 
   void _startRealtimeUpdates() {
     _realtimeTimer?.cancel();
-    _fetchLatestData(); // Panggil sekali di awal
+    _fetchLatestData();
     _realtimeTimer = Timer.periodic(const Duration(seconds: 30), (timer) {
-      print("Fetching latest data..."); // Log untuk menandakan refresh otomatis
       _fetchLatestData();
     });
   }
@@ -165,7 +195,7 @@ class _ActualDashboardContentState extends State<ActualDashboardContent> {
       final latest = await _deviceService.getLatestData(_selectedDevice!.id);
       if (mounted) {
         setState(() => _latestData = latest);
-        _realtimeDataController.add(latest); // Update stream dengan data baru
+        _realtimeDataController.add(latest);
       }
     } catch (e) {
       print("Gagal memuat data real-time: $e");
@@ -211,6 +241,7 @@ class _ActualDashboardContentState extends State<ActualDashboardContent> {
         _trendingData = null;
         _totalKwhToday = 0.0;
         _totalCostToday = 0.0;
+        _weeklyTrendData = []; // Reset juga data ini
       });
       _fetchAllDataForDevice();
     }
@@ -434,7 +465,7 @@ class _ActualDashboardContentState extends State<ActualDashboardContent> {
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.only(left: 16, right: 16, bottom: 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -463,16 +494,164 @@ class _ActualDashboardContentState extends State<ActualDashboardContent> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildSectionTitle('Tren Penggunaan'),
-        _buildTrendingCards(),
+        _buildSectionTitle('Analisis Konsumsi'),
+        _buildMainChartSection(),
         const SizedBox(height: 24),
+
+        _buildSectionTitle('Tren & Efisiensi'),
+        _buildEfficiencyAndTrendsSection(),
+        const SizedBox(height: 24),
+
         _buildSectionTitle('Status & Ringkasan Harian'),
         _buildDailyAndRealtimeCards(),
         const SizedBox(height: 24),
-        _buildSectionTitle('Analisis Konsumsi'),
-        _buildChartWidgets(),
-        const SizedBox(height: 24),
       ],
+    );
+  }
+
+  // ▼▼▼ GANTI FUNGSI INI DI KODE ANDA ▼▼▼
+  Widget _buildEfficiencyAndTrendsSection() {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final bool isWide =
+            constraints.maxWidth > 750; // Sedikit disesuaikan untuk layout baru
+
+        if (isWide) {
+          // === TATA LETAK BARU UNTUK DESKTOP / LAYAR LEBAR ===
+          return IntrinsicHeight(
+            // Membuat kedua kolom memiliki tinggi yang sama
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Kolom Kiri: EER + 3 Kartu Tren
+                Expanded(
+                  flex: 1, // Beri jatah ruang yang sama
+                  child: Column(
+                    children: [
+                      _buildEfficiencyCard(),
+                      const SizedBox(height: 16),
+                      if (_trendingData != null)
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _buildCompactSummaryCard(
+                                '24 Jam',
+                                _trendingData!.last24hKwh,
+                                Icons.hourglass_bottom,
+                                Colors.orange,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: _buildCompactSummaryCard(
+                                '7 Hari',
+                                _trendingData!.last7dKwh,
+                                Icons.date_range,
+                                Colors.blue,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: _buildCompactSummaryCard(
+                                '30 Hari',
+                                _trendingData!.last30dKwh,
+                                Icons.calendar_month,
+                                Colors.green,
+                              ),
+                            ),
+                          ],
+                        ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 16),
+                // Kolom Kanan: Grafik Per Jam
+                Expanded(
+                  flex: 1, // Beri jatah ruang yang sama
+                  child: _buildHourlyLineChartCard(),
+                ),
+              ],
+            ),
+          );
+        } else {
+          // === TATA LETAK LAMA UNTUK MOBILE / LAYAR SEMPIT (TETAP SAMA) ===
+          return Column(
+            children: [
+              // EER dan Grafik Per Jam akan bertumpuk secara otomatis
+              _buildEfficiencyCard(),
+              const SizedBox(height: 16),
+              _buildHourlyLineChartCard(),
+              const SizedBox(height: 16),
+              // 3 Kartu Tren di bawahnya
+              if (_trendingData != null)
+                Row(
+                  children: [
+                    Expanded(
+                      child: _buildCompactSummaryCard(
+                        '24 Jam',
+                        _trendingData!.last24hKwh,
+                        Icons.hourglass_bottom,
+                        Colors.orange,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _buildCompactSummaryCard(
+                        '7 Hari',
+                        _trendingData!.last7dKwh,
+                        Icons.date_range,
+                        Colors.blue,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _buildCompactSummaryCard(
+                        '30 Hari',
+                        _trendingData!.last30dKwh,
+                        Icons.calendar_month,
+                        Colors.green,
+                      ),
+                    ),
+                  ],
+                ),
+            ],
+          );
+        }
+      },
+    );
+  }
+
+  Widget _buildCompactSummaryCard(
+    String title,
+    double value,
+    IconData icon,
+    Color color,
+  ) {
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      color: Colors.white,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 24, color: color),
+            const SizedBox(height: 8),
+            Text(
+              '${value.toStringAsFixed(2)} kWh',
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 2),
+            Text(
+              title,
+              style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -751,155 +930,371 @@ class _ActualDashboardContentState extends State<ActualDashboardContent> {
     );
   }
 
-  Widget _buildChartWidgets() {
-    return Wrap(
-      spacing: 16,
-      runSpacing: 16,
-      children: [
-        LayoutBuilder(
-          builder: (context, constraints) {
-            return SizedBox(
-              width: constraints.maxWidth > 800
-                  ? (constraints.maxWidth / 2 - 8)
-                  : double.infinity,
-              child: _buildHourlyLineChartCard(),
-            );
-          },
-        ),
-        LayoutBuilder(
-          builder: (context, constraints) {
-            return SizedBox(
-              width: constraints.maxWidth > 800
-                  ? (constraints.maxWidth / 2 - 8)
-                  : double.infinity,
+  Widget _buildMainChartSection() {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final double cardWidth = constraints.maxWidth > 800
+            ? (constraints.maxWidth / 2 - 8)
+            : constraints.maxWidth;
+
+        return Wrap(
+          spacing: 16,
+          runSpacing: 16,
+          children: [
+            SizedBox(
+              width: cardWidth,
+              child: _buildWeeklyTrendChartCard(),
+            ), // Panggil widget baru
+            SizedBox(
+              width: cardWidth,
               child: PredictionChartCard(deviceId: _selectedDevice!.id),
-            );
-          },
-        ),
-      ],
+            ),
+          ],
+        );
+      },
     );
   }
 
-  Widget _buildHourlyLineChartCard() {
+  Widget _buildWeeklyTrendChartCard() {
+    final now = DateTime.now();
+
+    // 1. Siapkan data spot (titik) untuk grafik
+    final spots = List.generate(7, (index) => FlSpot(index.toDouble(), 0.0));
+    if (_weeklyTrendData.isNotEmpty) {
+      for (var summary in _weeklyTrendData) {
+        final dayDiff = now.difference(summary.summaryDate).inDays;
+        if (dayDiff >= 0 && dayDiff < 7) {
+          final dayIndex = 6 - dayDiff; // 0=6hr lalu, ..., 6=hari ini
+          spots[dayIndex] = FlSpot(dayIndex.toDouble(), summary.totalKwh);
+        }
+      }
+    }
+
+    // 2. Cari nilai Y maksimal untuk skala grafik (disamakan dengan style hourly chart)
+    double maxY = 1;
+    if (spots.isNotEmpty) {
+      maxY = spots.map((e) => e.y).reduce(max);
+      if (maxY == 0) {
+        maxY = 1; // Default jika semua nilai 0
+      } else {
+        maxY = maxY + (maxY * 0.2); // Tambah padding 20%
+      }
+    }
+
     return AspectRatio(
       aspectRatio: 1.5,
       child: Card(
         elevation: 2,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        // UPDATED: Card color set to white
         color: Colors.white,
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-          child: _lineChartSpots.isEmpty
-              ? const Center(
-                  child: Text("Tidak ada data konsumsi pada tanggal ini."),
-                )
-              : LineChart(
-                  LineChartData(
-                    minX: 0,
-                    maxX: 23,
-                    gridData: FlGridData(
-                      show: true,
-                      drawVerticalLine: true,
-                      getDrawingHorizontalLine: (value) => const FlLine(
-                        color: Color(0xff37434d),
-                        strokeWidth: 0.2,
-                      ),
-                      getDrawingVerticalLine: (value) => const FlLine(
-                        color: Color(0xff37434d),
-                        strokeWidth: 0.2,
-                      ),
-                    ),
-                    titlesData: FlTitlesData(
-                      topTitles: const AxisTitles(
-                        sideTitles: SideTitles(showTitles: false),
-                      ),
-                      rightTitles: const AxisTitles(
-                        sideTitles: SideTitles(showTitles: false),
-                      ),
-                      leftTitles: AxisTitles(
-                        sideTitles: SideTitles(
-                          showTitles: true,
-                          reservedSize: 40,
-                          getTitlesWidget: (value, meta) {
-                            return Text(
-                              value.toStringAsFixed(2),
-                              style: const TextStyle(fontSize: 10),
-                            );
-                          },
-                        ),
-                      ),
-                      bottomTitles: AxisTitles(
-                        sideTitles: SideTitles(
-                          showTitles: true,
-                          reservedSize: 30,
-                          interval: 4,
-                          getTitlesWidget: (value, meta) {
-                            return SideTitleWidget(
-                              axisSide: meta.axisSide,
-                              child: Text(
-                                value.toInt().toString().padLeft(2, '0'),
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-                    ),
-                    borderData: FlBorderData(
-                      show: true,
-                      border: Border.all(
-                        color: const Color(0xff37434d),
-                        width: 1,
-                      ),
-                    ),
-                    lineBarsData: [
-                      LineChartBarData(
-                        spots: _lineChartSpots,
-                        isCurved: true,
-                        color: AppColors.primaryColor,
-                        barWidth: 4,
-                        isStrokeCapRound: true,
-                        dotData: const FlDotData(show: false),
-                        belowBarData: BarAreaData(
-                          show: true,
-                          color: AppColors.primaryColor.withOpacity(0.3),
-                        ),
-                      ),
-                    ],
-                    lineTouchData: LineTouchData(
-                      touchTooltipData: LineTouchTooltipData(
-                        getTooltipColor: (touchedSpot) =>
-                            Colors.blueGrey.withOpacity(0.8),
-                        getTooltipItems: (touchedSpots) {
-                          return touchedSpots.map((LineBarSpot spot) {
-                            final jam = spot.x.toInt();
-                            final kwh = spot.y;
-                            return LineTooltipItem(
-                              'Jam ${jam.toString().padLeft(2, '0')}:00\n',
-                              const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                              ),
-                              children: [
-                                TextSpan(
-                                  text: '${kwh.toStringAsFixed(3)} kWh',
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.normal,
-                                  ),
-                                ),
-                              ],
-                            );
-                          }).toList();
-                        },
-                      ),
-                    ),
-                  ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text(
+                'Tren Konsumsi 7 Hari Terakhir (kWh)',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
                 ),
+              ),
+              const SizedBox(height: 16),
+              Expanded(
+                child: _weeklyTrendData.isEmpty
+                    ? const Center(
+                        child: Text("Data tidak cukup untuk menampilkan tren."),
+                      )
+                    : LineChart(
+                        LineChartData(
+                          // === PENGATURAN STYLE DIMULAI DARI SINI ===
+                          minY: 0,
+                          maxY: maxY,
+                          minX: 0,
+                          maxX: 6,
+                          clipData: FlClipData.all(),
+                          gridData: FlGridData(
+                            show: true,
+                            drawVerticalLine: true, // Diubah menjadi true
+                            getDrawingHorizontalLine: (value) => const FlLine(
+                              color: Color(0xffe7e8ec),
+                              strokeWidth: 1,
+                            ),
+                            getDrawingVerticalLine: (value) => const FlLine(
+                              color: Color(0xffe7e8ec),
+                              strokeWidth: 1,
+                            ),
+                          ),
+                          titlesData: FlTitlesData(
+                            topTitles: const AxisTitles(
+                              sideTitles: SideTitles(showTitles: false),
+                            ),
+                            rightTitles: const AxisTitles(
+                              sideTitles: SideTitles(showTitles: false),
+                            ),
+                            leftTitles: AxisTitles(
+                              sideTitles: SideTitles(
+                                showTitles: true,
+                                reservedSize: 42,
+                                getTitlesWidget: (value, meta) {
+                                  if (value == meta.min || value == meta.max) {
+                                    return const SizedBox.shrink();
+                                  }
+                                  return Text(
+                                    value.toStringAsFixed(2),
+                                    style: const TextStyle(fontSize: 10),
+                                    textAlign: TextAlign.left,
+                                  );
+                                },
+                              ),
+                            ),
+                            bottomTitles: AxisTitles(
+                              sideTitles: SideTitles(
+                                showTitles: true,
+                                reservedSize: 30,
+                                interval: 1, // Interval 1 untuk setiap hari
+                                getTitlesWidget: (value, meta) {
+                                  if (value >= meta.max) {
+                                    return const SizedBox.shrink();
+                                  }
+                                  final day = now.subtract(
+                                    Duration(days: 6 - value.toInt()),
+                                  );
+                                  return SideTitleWidget(
+                                    axisSide: meta.axisSide,
+                                    space: 8.0,
+                                    child: Text(
+                                      DateFormat('E').format(
+                                        day,
+                                      ), // Format 'Sen', 'Sel', dst.
+                                      style: const TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                          ),
+                          borderData: FlBorderData(show: false),
+                          lineBarsData: [
+                            LineChartBarData(
+                              spots: spots,
+                              isCurved: true,
+                              preventCurveOverShooting: true, // Ditambahkan
+                              color: AppColors.primaryColor,
+                              barWidth: 3,
+                              isStrokeCapRound: true,
+                              dotData: const FlDotData(show: false),
+                              belowBarData: BarAreaData(
+                                show: true,
+                                color: AppColors.primaryColor.withOpacity(0.2),
+                              ),
+                            ),
+                          ],
+                          lineTouchData: LineTouchData(
+                            touchTooltipData: LineTouchTooltipData(
+                              getTooltipColor: (touchedSpot) =>
+                                  Colors.blueGrey.withOpacity(0.8),
+                              getTooltipItems: (touchedSpots) {
+                                return touchedSpots.map((spot) {
+                                  final day = now.subtract(
+                                    Duration(days: 6 - spot.spotIndex),
+                                  );
+                                  return LineTooltipItem(
+                                    '${DateFormat('EEEE, d MMM').format(day)}\n',
+                                    const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                    children: [
+                                      TextSpan(
+                                        text:
+                                            '${spot.y.toStringAsFixed(3)} kWh',
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.normal,
+                                        ),
+                                      ),
+                                    ],
+                                  );
+                                }).toList();
+                              },
+                            ),
+                          ),
+                        ),
+                      ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHourlyLineChartCard() {
+    // Cari nilai maxY dari data, lalu beri padding 20% ke atas
+    double maxY = 1;
+    if (_lineChartSpots.isNotEmpty) {
+      maxY = _lineChartSpots.map((e) => e.y).reduce((a, b) => a > b ? a : b);
+      if (maxY == 0) {
+        maxY = 1;
+      } else {
+        maxY = maxY + (maxY * 0.2);
+      }
+    }
+
+    return AspectRatio(
+      aspectRatio: 1.5,
+      child: Card(
+        elevation: 2,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        color: Colors.white,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+          // Gunakan Column untuk menempatkan judul di atas grafik
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // JUDUL WIDGET
+              const Text(
+                'Konsumsi Daya per Jam',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
+              ),
+              const SizedBox(
+                height: 16,
+              ), // Memberi jarak antara judul dan grafik
+              // Gunakan Expanded agar grafik mengisi sisa ruang yang tersedia
+              Expanded(
+                child: _lineChartSpots.isEmpty
+                    ? const Center(
+                        child: Text(
+                          "Tidak ada data konsumsi pada tanggal ini.",
+                        ),
+                      )
+                    : LineChart(
+                        LineChartData(
+                          minY: 0,
+                          maxY: maxY,
+                          clipData: FlClipData.all(),
+                          minX: 0,
+                          maxX: 23,
+                          gridData: FlGridData(
+                            show: true,
+                            drawVerticalLine: true,
+                            getDrawingHorizontalLine: (value) => const FlLine(
+                              color: Color(0xffe7e8ec), // Warna grid lebih soft
+                              strokeWidth: 1,
+                            ),
+                            getDrawingVerticalLine: (value) => const FlLine(
+                              color: Color(0xffe7e8ec), // Warna grid lebih soft
+                              strokeWidth: 1,
+                            ),
+                          ),
+                          titlesData: FlTitlesData(
+                            topTitles: const AxisTitles(
+                              sideTitles: SideTitles(showTitles: false),
+                            ),
+                            rightTitles: const AxisTitles(
+                              sideTitles: SideTitles(showTitles: false),
+                            ),
+                            leftTitles: AxisTitles(
+                              sideTitles: SideTitles(
+                                showTitles: true,
+                                reservedSize: 42,
+                                getTitlesWidget: (value, meta) {
+                                  // Hanya tampilkan label jika bukan di titik min atau max
+                                  if (value == meta.min || value == meta.max) {
+                                    return const SizedBox.shrink();
+                                  }
+                                  return Text(
+                                    value.toStringAsFixed(2),
+                                    style: const TextStyle(fontSize: 10),
+                                    textAlign: TextAlign.left,
+                                  );
+                                },
+                              ),
+                            ),
+                            bottomTitles: AxisTitles(
+                              sideTitles: SideTitles(
+                                showTitles: true,
+                                reservedSize: 30,
+                                interval: 4,
+                                getTitlesWidget: (value, meta) {
+                                  // Menghindari label tumpang tindih di akhir
+                                  if (value >= meta.max) {
+                                    return const SizedBox.shrink();
+                                  }
+                                  return SideTitleWidget(
+                                    axisSide: meta.axisSide,
+                                    space: 8.0,
+                                    child: Text(
+                                      value.toInt().toString().padLeft(2, '0'),
+                                      style: const TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                          ),
+                          borderData: FlBorderData(show: false),
+                          lineBarsData: [
+                            LineChartBarData(
+                              spots: _lineChartSpots,
+                              isCurved: true,
+                              preventCurveOverShooting: true,
+                              color: AppColors.primaryColor,
+                              barWidth: 3,
+                              isStrokeCapRound: true,
+                              dotData: const FlDotData(show: false),
+                              belowBarData: BarAreaData(
+                                show: true,
+                                color: AppColors.primaryColor.withOpacity(0.2),
+                              ),
+                            ),
+                          ],
+                          lineTouchData: LineTouchData(
+                            touchTooltipData: LineTouchTooltipData(
+                              getTooltipColor: (touchedSpot) =>
+                                  Colors.blueGrey.withOpacity(0.8),
+                              getTooltipItems: (touchedSpots) {
+                                return touchedSpots.map((LineBarSpot spot) {
+                                  final jam = spot.x.toInt();
+                                  final kwh = spot.y;
+                                  return LineTooltipItem(
+                                    'Jam ${jam.toString().padLeft(2, '0')}:00\n',
+                                    const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                    children: [
+                                      TextSpan(
+                                        text: '${kwh.toStringAsFixed(3)} kWh',
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.normal,
+                                        ),
+                                      ),
+                                    ],
+                                  );
+                                }).toList();
+                              },
+                            ),
+                          ),
+                        ),
+                      ),
+              ),
+            ],
+          ),
         ),
       ),
     );

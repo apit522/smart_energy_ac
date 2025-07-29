@@ -17,23 +17,30 @@ class DeviceData {
   });
 
   factory DeviceData.fromJson(Map<String, dynamic> json) {
-    // String timestampString = json['timestamp'] ?? json['created_at'] ?? '';
+    // Helper untuk parsing aman
+    int safeParseInt(dynamic value) {
+      return int.tryParse(value?.toString() ?? '0') ?? 0;
+    }
 
-    // // Jika string diakhiri dengan 'Z', hapus agar di-parse sebagai waktu lokal
-    // if (timestampString.endsWith('Z')) {
-    //   timestampString = timestampString.substring(
-    //     0,
-    //     timestampString.length - 1,
-    //   );
-    // }
+    double safeParseDouble(dynamic value) {
+      return double.tryParse(value?.toString() ?? '0') ?? 0.0;
+    }
+
+    // Pastikan timestamp tidak null sebelum di-parse
+    DateTime parseTimestamp(dynamic value) {
+      if (value != null) {
+        return DateTime.parse(value.toString()).toLocal();
+      }
+      return DateTime.now();
+    }
 
     return DeviceData(
-      id: json['id'],
-      watt: (json['watt'] as num).toDouble(),
-      temperature: (json['temperature'] as num).toDouble(),
-      voltage: (json['voltage'] as num).toDouble(),
-      current: (json['current'] as num).toDouble(),
-      timestamp: DateTime.parse(json['timestamp']).toLocal(),
+      id: safeParseInt(json['id']),
+      watt: safeParseDouble(json['watt']),
+      temperature: safeParseDouble(json['temperature']),
+      voltage: safeParseDouble(json['voltage']),
+      current: safeParseDouble(json['current']),
+      timestamp: parseTimestamp(json['timestamp']),
     );
   }
 }

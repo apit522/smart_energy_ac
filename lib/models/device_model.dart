@@ -26,9 +26,13 @@ class Device {
       name: json['name'],
       location: json['location'],
       uniqueId: json['unique_id'],
-      btu: json['btu'],
-      lastSeenAt: json['last_seen_at'],
-      dayaVa: json['daya_va'],
+      btu: json['btu'] != null ? int.tryParse(json['btu'].toString()) : null,
+      lastSeenAt: json['latest_data'] != null
+          ? json['latest_data']['timestamp']
+          : null,
+      dayaVa: json['daya_va'] != null
+          ? int.tryParse(json['daya_va'].toString())
+          : null,
       tarifPerKwh: (json['tarif_per_kwh'] != null)
           ? double.tryParse(json['tarif_per_kwh'].toString())
           : null,
