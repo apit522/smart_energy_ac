@@ -599,23 +599,14 @@ class _KonsumsiDayaContentState extends State<KonsumsiDayaContent> {
 
         return isMobile
             ? Column(
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: cards
-                        .sublist(0, 3)
-                        .map((card) => SizedBox(width: cardWidth, child: card))
-                        .toList(),
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: cards
-                        .sublist(3)
-                        .map((card) => SizedBox(width: cardWidth, child: card))
-                        .toList(),
-                  ),
-                ],
+                children: cards
+                    .map(
+                      (card) => Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 6.0),
+                        child: card,
+                      ),
+                    )
+                    .toList(),
               )
             : Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),

@@ -53,6 +53,8 @@ dependencies:
   dio: ^5.4.3+1
 
 dev_dependencies:
+  flutter_launcher_icons: ^0.13.1
+  flutter_native_splash: ^2.4.0
   flutter_test:
     sdk: flutter
 
@@ -103,3 +105,13 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+flutter_icons:
+  android: true
+  ios: false
+  image_path: "assets/images/logo.png"
+
+flutter_native_splash:
+  color: "#ffffff"
+  image: assets/images/logo.png
+  android: true
+  ios: false

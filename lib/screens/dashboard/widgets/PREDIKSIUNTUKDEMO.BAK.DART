@@ -20,17 +20,14 @@ class _PredictionChartCardState extends State<PredictionChartCard> {
     1.827,
     1.030,
     1.065,
-    1.673,
-    0.596,
-    1.888,
-    0.551,
+    // hanya 3 hari
   ];
 
   @override
   Widget build(BuildContext context) {
     final now = DateTime.now();
     final List<DateTime> dates = List.generate(
-      7,
+      3,
       (i) => now.add(Duration(days: i + 1)),
     );
 
@@ -64,7 +61,7 @@ class _PredictionChartCardState extends State<PredictionChartCard> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const Text(
-                'Prediksi Konsumsi 7 Hari ke Depan (kWh per Hari)',
+                'Prediksi Konsumsi 3 Hari ke Depan (kWh per Hari)',
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
@@ -78,7 +75,7 @@ class _PredictionChartCardState extends State<PredictionChartCard> {
                     minY: 0,
                     maxY: maxY,
                     minX: 0,
-                    maxX: 6,
+                    maxX: 2,
                     clipData: FlClipData.all(),
                     gridData: FlGridData(
                       show: true,

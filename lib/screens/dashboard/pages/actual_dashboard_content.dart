@@ -276,9 +276,16 @@ class _ActualDashboardContentState extends State<ActualDashboardContent> {
           title: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                'Energy Efficiency Ratio (EER)',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+              Flexible(
+                child: Text(
+                  'Energy Efficiency Ratio (EER)',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                ),
               ),
               IconButton(
                 icon: const Icon(Icons.close),
@@ -957,27 +964,35 @@ class _ActualDashboardContentState extends State<ActualDashboardContent> {
 
   Widget _buildWeeklyTrendChartCard() {
     final now = DateTime.now();
+    // Inisialisasi spots tetap sama (3 titik data dengan indeks 0, 1, 2)
+    final spots = List.generate(3, (index) => FlSpot(index.toDouble(), 0.0));
 
-    // 1. Siapkan data spot (titik) untuk grafik
-    final spots = List.generate(7, (index) => FlSpot(index.toDouble(), 0.0));
     if (_weeklyTrendData.isNotEmpty) {
       for (var summary in _weeklyTrendData) {
         final dayDiff = now.difference(summary.summaryDate).inDays;
-        if (dayDiff >= 0 && dayDiff < 7) {
-          final dayIndex = 6 - dayDiff; // 0=6hr lalu, ..., 6=hari ini
+
+        // UBAH 1: Filter data untuk 1, 2, dan 3 hari yang lalu.
+        // Semula: if (dayDiff >= 0 && dayDiff < 3)
+        if (dayDiff >= 1 && dayDiff < 4) {
+          // UBAH 2: Sesuaikan pemetaan indeks agar pas dengan rentang baru.
+          // Kemarin (dayDiff=1) -> indeks 2 (paling kanan)
+          // Lusa (dayDiff=2) -> indeks 1 (tengah)
+          // 3 hari lalu (dayDiff=3) -> indeks 0 (paling kiri)
+          // Semula: final dayIndex = 2 - dayDiff;
+          final dayIndex = 3 - dayDiff;
           spots[dayIndex] = FlSpot(dayIndex.toDouble(), summary.totalKwh);
         }
       }
     }
 
-    // 2. Cari nilai Y maksimal untuk skala grafik (disamakan dengan style hourly chart)
+    // Logika untuk menentukan maxY tidak perlu diubah
     double maxY = 1;
     if (spots.isNotEmpty) {
       maxY = spots.map((e) => e.y).reduce(max);
       if (maxY == 0) {
-        maxY = 1; // Default jika semua nilai 0
+        maxY = 1;
       } else {
-        maxY = maxY + (maxY * 0.2); // Tambah padding 20%
+        maxY = maxY + (maxY * 0.2);
       }
     }
 
@@ -993,7 +1008,7 @@ class _ActualDashboardContentState extends State<ActualDashboardContent> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const Text(
-                'Tren Konsumsi 7 Hari Terakhir (kWh)',
+                'Tren Konsumsi 3 Hari Terakhir (kWh)', // Judul tetap relevan
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
@@ -1008,15 +1023,14 @@ class _ActualDashboardContentState extends State<ActualDashboardContent> {
                       )
                     : LineChart(
                         LineChartData(
-                          // === PENGATURAN STYLE DIMULAI DARI SINI ===
                           minY: 0,
                           maxY: maxY,
                           minX: 0,
-                          maxX: 6,
+                          maxX: 2, // Nilai X tetap dari 0 hingga 2
                           clipData: FlClipData.all(),
                           gridData: FlGridData(
                             show: true,
-                            drawVerticalLine: true, // Diubah menjadi true
+                            drawVerticalLine: true,
                             getDrawingHorizontalLine: (value) => const FlLine(
                               color: Color(0xffe7e8ec),
                               strokeWidth: 1,
@@ -1053,13 +1067,12 @@ class _ActualDashboardContentState extends State<ActualDashboardContent> {
                               sideTitles: SideTitles(
                                 showTitles: true,
                                 reservedSize: 30,
-                                interval: 1, // Interval 1 untuk setiap hari
+                                interval: 1,
                                 getTitlesWidget: (value, meta) {
-                                  if (value >= meta.max) {
-                                    return const SizedBox.shrink();
-                                  }
+                                  // UBAH 3: Sesuaikan logika label sumbu X.
+                                  // Semula: Duration(days: 2 - value.toInt())
                                   final day = now.subtract(
-                                    Duration(days: 6 - value.toInt()),
+                                    Duration(days: 3 - value.toInt()),
                                   );
                                   return SideTitleWidget(
                                     axisSide: meta.axisSide,
@@ -1067,7 +1080,7 @@ class _ActualDashboardContentState extends State<ActualDashboardContent> {
                                     child: Text(
                                       DateFormat('E').format(
                                         day,
-                                      ), // Format 'Sen', 'Sel', dst.
+                                      ), // 'E' untuk nama hari (Sen, Sel, dll)
                                       style: const TextStyle(
                                         fontSize: 11,
                                         fontWeight: FontWeight.bold,
@@ -1083,7 +1096,7 @@ class _ActualDashboardContentState extends State<ActualDashboardContent> {
                             LineChartBarData(
                               spots: spots,
                               isCurved: true,
-                              preventCurveOverShooting: true, // Ditambahkan
+                              preventCurveOverShooting: true,
                               color: AppColors.primaryColor,
                               barWidth: 3,
                               isStrokeCapRound: true,
@@ -1100,8 +1113,10 @@ class _ActualDashboardContentState extends State<ActualDashboardContent> {
                                   Colors.blueGrey.withOpacity(0.8),
                               getTooltipItems: (touchedSpots) {
                                 return touchedSpots.map((spot) {
+                                  // UBAH 4: Sesuaikan logika tanggal pada tooltip.
+                                  // Semula: Duration(days: 2 - spot.spotIndex)
                                   final day = now.subtract(
-                                    Duration(days: 6 - spot.spotIndex),
+                                    Duration(days: 3 - spot.spotIndex),
                                   );
                                   return LineTooltipItem(
                                     '${DateFormat('EEEE, d MMM').format(day)}\n',
@@ -1122,6 +1137,11 @@ class _ActualDashboardContentState extends State<ActualDashboardContent> {
                                   );
                                 }).toList();
                               },
+                              tooltipRoundedRadius: 8,
+                              tooltipPadding: const EdgeInsets.all(8),
+                              tooltipMargin: 12,
+                              fitInsideHorizontally: true,
+                              fitInsideVertically: true,
                             ),
                           ),
                         ),
@@ -1288,6 +1308,11 @@ class _ActualDashboardContentState extends State<ActualDashboardContent> {
                                   );
                                 }).toList();
                               },
+                              tooltipRoundedRadius: 8,
+                              tooltipPadding: const EdgeInsets.all(8),
+                              tooltipMargin: 12,
+                              fitInsideHorizontally: true,
+                              fitInsideVertically: true,
                             ),
                           ),
                         ),

@@ -193,111 +193,131 @@ class _DeviceScreenState extends State<DeviceScreen> {
             borderRadius: BorderRadius.circular(12),
           ),
           color: Colors.white,
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                // Bagian Atas: Nama dan Status
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          child: Text(
-                            device.name,
-                            style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(
+              minHeight: 180,
+              maxHeight: 260, // Batasi tinggi card agar tidak overflow
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(10.0), // Kurangi padding
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  // Bagian Atas: Nama dan Status
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              device.name,
+                              style: const TextStyle(
+                                fontSize: 15, // Perkecil font
+                                fontWeight: FontWeight.bold,
+                              ),
+                              overflow: TextOverflow.ellipsis,
                             ),
-                            overflow: TextOverflow.ellipsis,
                           ),
+                          _buildStatusChip(isConnected),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      SingleChildScrollView(
+                        scrollDirection: Axis.vertical,
+                        child: Column(
+                          children: [
+                            _buildInfoRow(
+                              Icons.location_on_outlined,
+                              'Lokasi',
+                              device.location ?? 'N/A',
+                              fontSize: 12,
+                            ),
+                            _buildInfoRow(
+                              Icons.memory_outlined,
+                              'Unique ID',
+                              device.uniqueId,
+                              fontSize: 12,
+                            ),
+                            _buildInfoRow(
+                              Icons.ac_unit_outlined,
+                              'BTU/jam',
+                              device.btu?.toString() ?? 'N/A',
+                              fontSize: 12,
+                            ),
+                            _buildInfoRow(
+                              Icons.flash_on_outlined,
+                              'Daya Listrik',
+                              '${device.dayaVa?.toString() ?? 'N/A'} VA',
+                              fontSize: 12,
+                            ),
+                            _buildInfoRow(
+                              Icons.attach_money,
+                              'Tarif',
+                              '${currencyFormatter.format(device.tarifPerKwh ?? 0)}/kWh',
+                              fontSize: 12,
+                            ),
+                            _buildInfoRow(
+                              Icons.access_time,
+                              'Terakhir Terhubung',
+                              lastSeenText,
+                              fontSize: 12,
+                            ),
+                          ],
                         ),
-                        _buildStatusChip(isConnected),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    _buildInfoRow(
-                      Icons.location_on_outlined,
-                      'Lokasi',
-                      device.location ?? 'N/A',
-                    ),
-                    const SizedBox(height: 6),
-                    _buildInfoRow(
-                      Icons.memory_outlined,
-                      'Unique ID',
-                      device.uniqueId,
-                    ),
-                    const SizedBox(height: 6),
-                    _buildInfoRow(
-                      Icons.ac_unit_outlined,
-                      'BTU/jam',
-                      device.btu?.toString() ?? 'N/A',
-                    ),
-                    const SizedBox(height: 6),
-                    _buildInfoRow(
-                      Icons.flash_on_outlined,
-                      'Daya Listrik',
-                      '${device.dayaVa?.toString() ?? 'N/A'} VA',
-                    ),
-                    const SizedBox(height: 6),
-                    _buildInfoRow(
-                      Icons.attach_money,
-                      'Tarif',
-                      '${currencyFormatter.format(device.tarifPerKwh ?? 0)}/kWh',
-                    ),
-                    const SizedBox(height: 6),
-                    _buildInfoRow(
-                      Icons.access_time,
-                      'Terakhir Terhubung',
-                      lastSeenText,
-                    ),
-                  ],
-                ),
-                // Bagian Bawah: Tombol Aksi
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    TextButton(
-                      onPressed: () => _showDeviceDialog(device: device),
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.edit_outlined,
-                            color: Colors.amber.shade800,
-                            size: 18,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            'Edit',
-                            style: TextStyle(color: Colors.amber.shade800),
-                          ),
-                        ],
                       ),
-                    ),
-                    TextButton(
-                      onPressed: () => _confirmDelete(device),
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.delete_outline,
-                            color: Colors.red.shade700,
-                            size: 18,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            'Hapus',
-                            style: TextStyle(color: Colors.red.shade700),
-                          ),
-                        ],
+                    ],
+                  ),
+                  // Bagian Bawah: Tombol Aksi
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed: () => _showDeviceDialog(device: device),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.edit_outlined,
+                              color: Colors.amber.shade800,
+                              size: 16,
+                            ),
+                            const SizedBox(width: 2),
+                            Text(
+                              'Edit',
+                              style: TextStyle(
+                                color: Colors.amber.shade800,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-              ],
+                      TextButton(
+                        onPressed: () => _confirmDelete(device),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.delete_outline,
+                              color: Colors.red.shade700,
+                              size: 16,
+                            ),
+                            const SizedBox(width: 2),
+                            Text(
+                              'Hapus',
+                              style: TextStyle(
+                                color: Colors.red.shade700,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
         );
@@ -306,19 +326,24 @@ class _DeviceScreenState extends State<DeviceScreen> {
   }
 
   // --- WIDGET HELPER ---
-  Widget _buildInfoRow(IconData icon, String label, String value) {
+  Widget _buildInfoRow(
+    IconData icon,
+    String label,
+    String value, {
+    double fontSize = 13,
+  }) {
     return Row(
       children: [
-        Icon(icon, color: Colors.grey[600], size: 16),
-        const SizedBox(width: 10),
+        Icon(icon, color: Colors.grey[600], size: 14),
+        const SizedBox(width: 6),
         Text(
           '$label: ',
-          style: TextStyle(color: Colors.grey[700], fontSize: 13),
+          style: TextStyle(color: Colors.grey[700], fontSize: fontSize),
         ),
         Expanded(
           child: Text(
             value,
-            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+            style: TextStyle(fontWeight: FontWeight.w600, fontSize: fontSize),
             overflow: TextOverflow.ellipsis,
           ),
         ),

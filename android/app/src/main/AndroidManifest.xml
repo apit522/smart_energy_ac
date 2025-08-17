@@ -1,6 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application
-        android:label="smart_energy_ac"
+        android:label="Smart Energy AC"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
